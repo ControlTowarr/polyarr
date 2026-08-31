@@ -179,26 +179,26 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
       </div>
 
       <!-- Profile List -->
-      <div *ngIf="!isLoading && profiles.length === 0 && !showProfileForm" class="empty-state" style="padding:var(--space-md);">
+      <div *ngIf="!isLoading && profiles.length === 0 && !showProfileForm" class="empty-state empty-state-compact">
         <p class="empty-state-text">No sync profiles configured. Create one to link main and child instances.</p>
       </div>
 
       <div class="instance-list" *ngIf="!isLoading && profiles.length > 0">
         <div class="instance-item" *ngFor="let profile of profiles">
           <div class="instance-item-info">
-            <div class="instance-item-icon" style="background:rgba(167,139,250,0.2);color:#a78bfa;">
+            <div class="instance-item-icon instance-item-icon-sync">
               🔄
             </div>
             <div>
-              <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap;">
-                <span style="font-weight:600;font-size:1rem;">
+              <div class="profile-title-row">
+                <span class="profile-title-text">
                   {{ profile.mainInstance?.name || 'Main' }} ➔ {{ profile.childInstance?.name || 'Child' }}
                 </span>
                 <span class="badge" [ngClass]="profile.enabled ? 'badge-success' : 'badge-muted'">
                   {{ profile.enabled ? '✓ Active' : '⏸ Paused' }}
                 </span>
               </div>
-              <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">
+              <div class="profile-meta-text">
                 Strategy: {{ (profile.linkType || 'hardlink') | titlecase }} &bull; Delay: {{ profile.delayHours }}h &bull; Search: {{ profile.searchIfMissing ? 'Enabled' : 'Disabled' }}
               </div>
             </div>
@@ -213,24 +213,32 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
 
             <!-- Dry Run Button -->
             <button 
-              class="btn btn-secondary btn-sm" 
-              style="display:inline-flex;align-items:center;gap:6px;border-color:rgba(62, 203, 240, 0.4);color:var(--accent-primary);"
+              class="btn btn-secondary btn-sm btn-action-dryrun" 
               (click)="runDryRun(profile)"
               [disabled]="runningDryRunId === profile.id"
               title="Simulate sync without making any changes"
             >
-              <span *ngIf="runningDryRunId === profile.id" class="spinner" style="width:12px;height:12px;border-width:2px;"></span>
+              <span *ngIf="runningDryRunId === profile.id" class="spinner btn-spinner"></span>
               <span *ngIf="runningDryRunId !== profile.id">🧪</span>
               {{ runningDryRunId === profile.id ? 'Simulating...' : 'Dry Run' }}
+            </button>
+
+            <!-- Run Sync Button -->
+            <button 
+              class="btn btn-secondary btn-sm btn-action-sync" 
+              (click)="onRunSyncClick(profile)" 
+              [disabled]="isSyncing(profile.id)"
+              title="Execute manual sync now"
+            >
+              <span *ngIf="isSyncing(profile.id)" class="spinner btn-spinner"></span>
+              <span *ngIf="!isSyncing(profile.id)">⚡</span>
+              {{ isSyncing(profile.id) ? 'Syncing...' : 'Run Sync' }}
             </button>
 
             <button class="btn btn-ghost btn-sm" (click)="editProfile(profile)">
               Edit
             </button>
-            <button class="btn btn-secondary btn-sm" (click)="runSync(profile)" [disabled]="!profile.enabled || isSyncing(profile.id)">
-              {{ isSyncing(profile.id) ? 'Syncing...' : 'Run Sync' }}
-            </button>
-            <button class="btn btn-ghost btn-sm" style="color:var(--color-danger);" (click)="deleteProfile(profile.id)">
+            <button class="btn btn-ghost btn-sm btn-action-delete" (click)="deleteProfile(profile.id)">
               Delete
             </button>
           </div>
@@ -240,27 +248,27 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
 
     <!-- Global App Settings Card -->
     <div class="card">
-      <h3 style="font-weight:600;font-size:1.1rem;margin-bottom:var(--space-lg);">Global Settings</h3>
+      <h3 class="card-section-title">Global Settings</h3>
 
       <div class="form-group">
         <label class="form-label">Background Sync Interval (minutes)</label>
-        <input class="form-input" type="number" [(ngModel)]="settings.syncIntervalMinutes" min="5" max="1440" style="max-width:200px;" />
+        <input class="form-input input-narrow" type="number" [(ngModel)]="settings.syncIntervalMinutes" min="5" max="1440" />
       </div>
 
       <div class="form-group">
         <label class="form-label">Default Delay Before Child Search (hours)</label>
-        <input class="form-input" type="number" [(ngModel)]="settings.defaultDelayHours" min="0" max="720" style="max-width:200px;" />
+        <input class="form-input input-narrow" type="number" [(ngModel)]="settings.defaultDelayHours" min="0" max="720" />
       </div>
 
       <div class="form-group">
         <label class="form-label">Default Linking Method</label>
-        <select class="form-select" [(ngModel)]="settings.defaultLinkType" style="max-width:200px;">
+        <select class="form-select input-narrow" [(ngModel)]="settings.defaultLinkType">
           <option value="hardlink">Hardlink</option>
           <option value="symlink">Symlink</option>
         </select>
       </div>
 
-      <button class="btn btn-primary btn-sm" (click)="saveSettings()" style="margin-top:var(--space-md);">
+      <button class="btn btn-primary btn-sm btn-save-settings" (click)="saveSettings()">
         Save Settings
       </button>
     </div>
@@ -274,31 +282,31 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
         <!-- Modal Header -->
         <div class="dry-run-header">
           <div>
-            <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap;">
-              <span style="font-size:1.4rem;">🧪</span>
-              <h2 style="font-size:1.35rem;font-weight:700;background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+            <div class="dry-run-header-title">
+              <span class="dry-run-header-icon">🧪</span>
+              <h2 class="dry-run-header-h2">
                 Dry Run Sync Analysis Report
               </h2>
               <span class="badge badge-info">{{ dryRunReport.linkType | uppercase }}</span>
               <span class="badge badge-success">Target: {{ dryRunReport.targetLanguage | uppercase }}</span>
             </div>
-            <p style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">
-              Simulation for <strong style="color:var(--text-primary);">{{ dryRunReport.profileName }}</strong> &bull; 
+            <p class="dry-run-header-sub">
+              Simulation for <strong class="text-primary-emphasis">{{ dryRunReport.profileName }}</strong> &bull; 
               Generated at {{ dryRunReport.generatedAt | date:'mediumTime' }} &bull; 
-              <span style="color:var(--color-success);">0 file system or library changes made</span>
+              <span class="text-success-info">0 file system or library changes made</span>
             </p>
           </div>
 
-          <div style="display:flex;align-items:center;gap:var(--space-sm);">
+          <div class="dry-run-header-actions">
             <button 
               class="btn btn-secondary btn-sm" 
               (click)="reRunCurrentDryRun()" 
               [disabled]="runningDryRunId === dryRunReport.profileId"
             >
-              <span *ngIf="runningDryRunId === dryRunReport.profileId" class="spinner" style="width:12px;height:12px;border-width:2px;"></span>
+              <span *ngIf="runningDryRunId === dryRunReport.profileId" class="spinner btn-spinner"></span>
               🔄 Re-run
             </button>
-            <button class="btn btn-ghost btn-sm" style="font-size:1.2rem;padding:4px 10px;" (click)="closeDryRunModal()">
+            <button class="btn btn-ghost btn-sm btn-close-modal" (click)="closeDryRunModal()">
               ✕
             </button>
           </div>
@@ -311,50 +319,50 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
           <div class="dry-run-stats-grid">
             
             <!-- 1. Ready to Hardlink -->
-            <div class="stat-card" style="border-left: 4px solid var(--accent-primary);">
-              <div class="stat-icon" style="background:var(--accent-primary-muted);color:var(--accent-primary);">🔗</div>
+            <div class="stat-card stat-card-would-link">
+              <div class="stat-icon stat-icon-would-link">🔗</div>
               <div class="stat-content">
-                <div class="stat-number" style="color:var(--accent-primary);">{{ dryRunReport.summary.wouldLinkCount }}</div>
+                <div class="stat-number stat-num-would-link">{{ dryRunReport.summary.wouldLinkCount }}</div>
                 <div class="stat-label">Ready to Hardlink</div>
                 <div class="stat-sub">Has target audio; instant / 0 space</div>
               </div>
             </div>
 
             <!-- 2. Needs Download on Secondary -->
-            <div class="stat-card" style="border-left: 4px solid var(--color-warning);">
-              <div class="stat-icon" style="background:var(--color-warning-muted);color:var(--color-warning);">📥</div>
+            <div class="stat-card stat-card-needs-download">
+              <div class="stat-icon stat-icon-needs-download">📥</div>
               <div class="stat-content">
-                <div class="stat-number" style="color:var(--color-warning);">{{ dryRunReport.summary.needsDownloadCount }}</div>
+                <div class="stat-number stat-num-needs-download">{{ dryRunReport.summary.needsDownloadCount }}</div>
                 <div class="stat-label">Needs Download</div>
                 <div class="stat-sub">Lacks target audio; secondary downloads</div>
               </div>
             </div>
 
             <!-- 3. Already Hardlinked -->
-            <div class="stat-card" style="border-left: 4px solid #818cf8;">
-              <div class="stat-icon" style="background:rgba(129, 140, 248, 0.15);color:#818cf8;">✅</div>
+            <div class="stat-card stat-card-already-linked">
+              <div class="stat-icon stat-icon-already-linked">✅</div>
               <div class="stat-content">
-                <div class="stat-number" style="color:#818cf8;">{{ dryRunReport.summary.alreadyLinkedCount }}</div>
+                <div class="stat-number stat-num-already-linked">{{ dryRunReport.summary.alreadyLinkedCount }}</div>
                 <div class="stat-label">Already Hardlinked</div>
                 <div class="stat-sub">Link verified on disk</div>
               </div>
             </div>
 
             <!-- 4. Already on Secondary (Own File) -->
-            <div class="stat-card" style="border-left: 4px solid var(--accent-secondary);">
-              <div class="stat-icon" style="background:rgba(167, 139, 250, 0.15);color:var(--accent-secondary);">📁</div>
+            <div class="stat-card stat-card-already-exists">
+              <div class="stat-icon stat-icon-already-exists">📁</div>
               <div class="stat-content">
-                <div class="stat-number" style="color:var(--accent-secondary);">{{ dryRunReport.summary.alreadyExistsChildCount }}</div>
+                <div class="stat-number stat-num-already-exists">{{ dryRunReport.summary.alreadyExistsChildCount }}</div>
                 <div class="stat-label">Already on Secondary</div>
                 <div class="stat-sub">Secondary has its own copy</div>
               </div>
             </div>
 
             <!-- 5. Real Errors Only -->
-            <div class="stat-card" [style.border-left]="dryRunReport.summary.errorCount > 0 ? '4px solid var(--color-danger)' : '4px solid var(--border-subtle)'">
-              <div class="stat-icon" [style.background]="dryRunReport.summary.errorCount > 0 ? 'var(--color-danger-muted)' : 'var(--bg-input)'" [style.color]="dryRunReport.summary.errorCount > 0 ? 'var(--color-danger)' : 'var(--text-muted)'">⚠️</div>
+            <div class="stat-card stat-card-error" [class.has-errors]="dryRunReport.summary.errorCount > 0">
+              <div class="stat-icon stat-icon-error">⚠️</div>
               <div class="stat-content">
-                <div class="stat-number" [style.color]="dryRunReport.summary.errorCount > 0 ? 'var(--color-danger)' : 'var(--text-muted)'">
+                <div class="stat-number stat-num-error">
                   {{ dryRunReport.summary.errorCount }}
                 </div>
                 <div class="stat-label">Errors</div>
@@ -364,12 +372,11 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
           </div>
 
           <!-- Report Search Filter Bar -->
-          <div style="display:flex;align-items:center;gap:var(--space-md);margin-bottom:var(--space-lg);margin-top:var(--space-md);">
-            <div style="position:relative;flex:1;">
-              <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.9rem;">🔍</span>
+          <div class="filter-bar">
+            <div class="filter-input-wrap">
+              <span class="filter-search-icon">🔍</span>
               <input 
-                class="form-input" 
-                style="padding-left:36px;width:100%;" 
+                class="form-input filter-input" 
                 type="text" 
                 [(ngModel)]="searchQuery" 
                 placeholder="Filter results in this report by title, path, or reason..."
@@ -403,9 +410,9 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
 
                 <div *ngFor="let item of filterList(dryRunReport.wouldLink)" class="item-row">
                   <div class="item-header">
-                    <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap;">
-                      <span style="font-weight:600;font-size:0.95rem;color:var(--text-primary);">
-                        {{ item.title }} <span *ngIf="item.year" style="color:var(--text-secondary);font-weight:400;">({{ item.year }})</span>
+                    <div class="item-title-group">
+                      <span class="item-title-text">
+                        {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
                       </span>
                       <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
                         {{ item.mediaType | uppercase }}
@@ -449,9 +456,9 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
 
                 <div *ngFor="let item of filterList(dryRunReport.needsDownload)" class="item-row">
                   <div class="item-header">
-                    <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap;">
-                      <span style="font-weight:600;font-size:0.95rem;color:var(--text-primary);">
-                        {{ item.title }} <span *ngIf="item.year" style="color:var(--text-secondary);font-weight:400;">({{ item.year }})</span>
+                    <div class="item-title-group">
+                      <span class="item-title-text">
+                        {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
                       </span>
                       <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
                         {{ item.mediaType | uppercase }}
@@ -488,8 +495,8 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
 
                 <div *ngFor="let item of filterList(dryRunReport.alreadyLinked)" class="item-row">
                   <div class="item-header">
-                    <span style="font-weight:600;font-size:0.95rem;color:var(--text-primary);">
-                      {{ item.title }} <span *ngIf="item.year" style="color:var(--text-secondary);font-weight:400;">({{ item.year }})</span>
+                    <span class="item-title-text">
+                      {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
                     </span>
                     <span class="badge badge-success">Already Linked</span>
                   </div>
@@ -521,8 +528,8 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
 
                 <div *ngFor="let item of filterList(dryRunReport.alreadyExistsChild)" class="item-row">
                   <div class="item-header">
-                    <span style="font-weight:600;font-size:0.95rem;color:var(--text-primary);">
-                      {{ item.title }} <span *ngIf="item.year" style="color:var(--text-secondary);font-weight:400;">({{ item.year }})</span>
+                    <span class="item-title-text">
+                      {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
                     </span>
                     <span class="badge badge-muted">Independent Copy</span>
                   </div>
@@ -549,14 +556,14 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
                   No errors encountered during simulation.
                 </div>
 
-                <div *ngFor="let item of filterList(dryRunReport.errors)" class="item-row" style="border-left: 3px solid var(--color-danger);">
+                <div *ngFor="let item of filterList(dryRunReport.errors)" class="item-row item-row-error">
                   <div class="item-header">
-                    <span style="font-weight:600;font-size:0.95rem;color:var(--text-primary);">
-                      {{ item.title }} <span *ngIf="item.year" style="color:var(--text-secondary);font-weight:400;">({{ item.year }})</span>
+                    <span class="item-title-text">
+                      {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
                     </span>
                     <span class="badge badge-danger">Error</span>
                   </div>
-                  <div class="item-reason" style="color:var(--color-danger);">{{ item.reason }}</div>
+                  <div class="item-reason item-reason-error">{{ item.reason }}</div>
                 </div>
               </div>
             </details>
@@ -567,7 +574,7 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
 
         <!-- Modal Footer -->
         <div class="dry-run-footer">
-          <div style="font-size:0.85rem;color:var(--text-muted);">
+          <div class="dry-run-footer-hint">
             💡 This was a simulation. To perform actual linking, click <strong>"Run Sync"</strong> on the profile.
           </div>
           <button class="btn btn-primary" (click)="closeDryRunModal()">
@@ -577,259 +584,41 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
 
       </div>
     </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         PAUSED SYNC CONFIRMATION MODAL
+         ═══════════════════════════════════════════════════════════════ -->
+    <div *ngIf="showSyncConfirmModal && pendingSyncProfile" class="dry-run-overlay" (click)="closeSyncConfirmModal()">
+      <div class="card confirm-modal-card" (click)="$event.stopPropagation()">
+        <div class="confirm-modal-header">
+          <div class="confirm-modal-icon-badge">
+            ⚡
+          </div>
+          <div>
+            <h3 class="confirm-modal-title">Run Manual Sync?</h3>
+            <div class="confirm-modal-subtitle">Paused Sync Profile</div>
+          </div>
+        </div>
+
+        <p class="confirm-modal-text">
+          The sync profile <strong class="text-primary-emphasis">{{ pendingSyncProfile.mainInstance?.name || 'Main' }} ➔ {{ pendingSyncProfile.childInstance?.name || 'Child' }}</strong> is currently <span class="badge badge-muted">⏸ Paused</span> for automated background syncing and webhooks.
+        </p>
+        <p class="confirm-modal-notice">
+          ℹ️ Running a manual sync will process your media immediately according to your profile rules without unpausing background automations.
+        </p>
+
+        <div class="confirm-modal-actions">
+          <button class="btn btn-ghost btn-sm" (click)="closeSyncConfirmModal()">
+            Cancel
+          </button>
+          <button class="btn btn-primary btn-sm btn-confirm-sync" (click)="confirmManualSync()">
+            ⚡ Run Sync Now
+          </button>
+        </div>
+      </div>
+    </div>
   `,
-  styles: [`
-    /* Dry Run Overlay & Modal */
-    .dry-run-overlay {
-      position: fixed;
-      inset: 0;
-      background: var(--bg-modal-overlay);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      z-index: 9999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: var(--space-md);
-      animation: fadeIn 0.2s ease-out;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    .dry-run-modal {
-      width: 95vw;
-      max-width: 1100px;
-      max-height: 90vh;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg-card);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow-lg);
-      overflow: hidden;
-      padding: 0;
-    }
-
-    .dry-run-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--space-lg) var(--space-xl);
-      border-bottom: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
-    }
-
-    .dry-run-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: var(--space-xl);
-    }
-
-    .dry-run-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--space-md) var(--space-xl);
-      border-top: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
-    }
-
-    /* Stat Cards Grid */
-    .dry-run-stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: var(--space-md);
-      margin-bottom: var(--space-lg);
-    }
-
-    .stat-card {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-md);
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-      transition: transform var(--transition-fast);
-    }
-    .stat-card:hover {
-      transform: translateY(-2px);
-    }
-
-    .stat-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: var(--radius-md);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.1rem;
-      flex-shrink: 0;
-    }
-
-    .stat-content {
-      min-width: 0;
-    }
-
-    .stat-number {
-      font-size: 1.6rem;
-      font-weight: 700;
-      line-height: 1.1;
-    }
-
-    .stat-label {
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-top: 2px;
-    }
-
-    .stat-sub {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      margin-top: 2px;
-      line-height: 1.3;
-    }
-
-    /* Collapsible Details Sections */
-    .dry-run-sections {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-md);
-    }
-
-    .report-section {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      transition: border-color var(--transition-fast);
-    }
-    .report-section[open] {
-      border-color: var(--border-default);
-    }
-
-    .report-summary {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--space-md) var(--space-lg);
-      cursor: pointer;
-      user-select: none;
-      background: var(--bg-surface);
-      list-style: none;
-      transition: background var(--transition-fast);
-    }
-    .report-summary::-webkit-details-marker {
-      display: none;
-    }
-    .report-summary:hover {
-      background: var(--bg-card-hover);
-    }
-
-    .summary-left {
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-    }
-
-    .section-icon {
-      font-size: 1.2rem;
-    }
-
-    .section-title {
-      font-weight: 600;
-      font-size: 0.95rem;
-      color: var(--text-primary);
-    }
-
-    .summary-hint {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-    }
-
-    @media (max-width: 768px) {
-      .summary-hint {
-        display: none;
-      }
-    }
-
-    .section-content {
-      padding: var(--space-md) var(--space-lg);
-      border-top: 1px solid var(--border-subtle);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-      max-height: 380px;
-      overflow-y: auto;
-    }
-
-    .section-empty {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      font-style: italic;
-      padding: var(--space-md) 0;
-      text-align: center;
-    }
-
-    /* Item Row Card */
-    .item-row {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .item-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-sm);
-    }
-
-    .item-paths {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      font-size: 0.78rem;
-      background: var(--bg-input);
-      padding: 6px 10px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-subtle);
-      overflow-x: auto;
-    }
-
-    .path-line {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--text-secondary);
-    }
-
-    .path-tag {
-      font-size: 0.68rem;
-      font-weight: 700;
-      color: var(--accent-primary);
-      flex-shrink: 0;
-    }
-
-    .path-line code {
-      font-family: monospace;
-      color: var(--text-primary);
-      word-break: break-all;
-    }
-
-    .item-reason {
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-    }
-  `]
+  styles: []
 })
 export class SettingsComponent implements OnInit {
   instances: Instance[] = [];
@@ -857,6 +646,10 @@ export class SettingsComponent implements OnInit {
   showDryRunModal = false;
   searchQuery = '';
 
+  // Paused profile sync confirmation state
+  showSyncConfirmModal = false;
+  pendingSyncProfile: SyncProfile | null = null;
+
   currentProfile: Partial<SyncProfile> = {
     enabled: true,
     linkType: 'hardlink',
@@ -875,6 +668,10 @@ export class SettingsComponent implements OnInit {
 
   @HostListener('document:keydown.escape')
   onEscape() {
+    if (this.showSyncConfirmModal) {
+      this.closeSyncConfirmModal();
+      return;
+    }
     if (this.showDryRunModal) {
       this.closeDryRunModal();
     }
@@ -1124,7 +921,31 @@ export class SettingsComponent implements OnInit {
     }
   }
 
-  runSync(profile: SyncProfile) {
+  onRunSyncClick(profile: SyncProfile) {
+    if (this.isSyncing(profile.id)) return;
+    if (profile.enabled) {
+      this.executeSync(profile);
+    } else {
+      this.pendingSyncProfile = profile;
+      this.showSyncConfirmModal = true;
+      this.cdr.detectChanges();
+    }
+  }
+
+  closeSyncConfirmModal() {
+    this.showSyncConfirmModal = false;
+    this.pendingSyncProfile = null;
+    this.cdr.detectChanges();
+  }
+
+  confirmManualSync() {
+    if (!this.pendingSyncProfile) return;
+    const profile = this.pendingSyncProfile;
+    this.closeSyncConfirmModal();
+    this.executeSync(profile);
+  }
+
+  executeSync(profile: SyncProfile) {
     this.syncingProfileIds.add(profile.id);
     this.toast.info(`Running sync for "${profile.mainInstance?.name || 'Main'} ➔ ${profile.childInstance?.name || 'Child'}"...`);
     this.cdr.detectChanges();
@@ -1147,6 +968,10 @@ export class SettingsComponent implements OnInit {
         this.toast.error(`Sync failed: ${err.error?.error || err.message}`);
       },
     });
+  }
+
+  runSync(profile: SyncProfile) {
+    this.onRunSyncClick(profile);
   }
 
   saveSettings() {

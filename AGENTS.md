@@ -17,3 +17,7 @@
   - **Hardlink**: Main file contains the target language audio -> zero space link created on child.
   - **Needs Download**: Main file lacks the target language audio -> child instance must search indexers and download a separate file.
   - **Errors**: Only report real API timeouts, lookup failures, or filesystem permissions. Do NOT treat missing-language files as errors.
+
+## 4. Git & Version Control Guardrails
+- **Explicit User Request Required**: NEVER run `git commit` or `git push` unless the user explicitly and directly asks you to do so in their message.
+- Do not automatically commit when creating/editing files, documentation, or rules unless specifically instructed.

@@ -60,7 +60,7 @@ import { SyncProfile, Instance, DryRunReport, DryRunItem } from '../../core/mode
         <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
           <div>
             <div style="font-weight:600;font-size:0.9rem;">Enable Active Scanning & Syncing</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">Include this profile in automated background syncs and scans</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">Include this profile in automated background syncs, library scans, and webhook imports</div>
           </div>
           <label class="switch">
             <input type="checkbox" [(ngModel)]="currentProfile.enabled">
@@ -71,7 +71,7 @@ import { SyncProfile, Instance, DryRunReport, DryRunItem } from '../../core/mode
         <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
           <div>
             <div style="font-weight:600;font-size:0.9rem;">Auto-Search Missing Audio</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">Trigger search in child instance if target audio is missing after delay</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">Automatically search indexers for secondary audio if missing on main. When off, missing audio items are ignored (no-op) and only matching files are linked.</div>
           </div>
           <label class="switch">
             <input type="checkbox" [(ngModel)]="currentProfile.searchIfMissing">
@@ -79,10 +79,10 @@ import { SyncProfile, Instance, DryRunReport, DryRunItem } from '../../core/mode
           </label>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+        <div *ngIf="isSonarrProfile()" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
           <div>
             <div style="font-weight:600;font-size:0.9rem;">Sync Monitored Seasons</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">Keep season monitor status synchronized across Sonarr instances</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">Keep season monitor status synchronized across Sonarr instances (Sonarr only)</div>
           </div>
           <label class="switch">
             <input type="checkbox" [(ngModel)]="currentProfile.syncMonitoredSeasons">
@@ -797,6 +797,11 @@ export class SyncProfilesComponent implements OnInit {
     return this.instances.filter(i => !i.isMain);
   }
 
+  isSonarrProfile(): boolean {
+    const main = this.instances.find(i => i.id === Number(this.currentProfile.mainInstanceId));
+    return main?.type === 'sonarr';
+  }
+
   openAddProfile() {
     this.editingProfileId = null;
     this.currentProfile = {
@@ -833,8 +838,13 @@ export class SyncProfilesComponent implements OnInit {
       return;
     }
 
+    const payload = {
+      ...this.currentProfile,
+      syncMonitoredSeasons: this.isSonarrProfile() ? (this.currentProfile.syncMonitoredSeasons ?? false) : false
+    };
+
     if (this.editingProfileId) {
-      this.api.updateSyncProfile(this.editingProfileId, this.currentProfile).subscribe({
+      this.api.updateSyncProfile(this.editingProfileId, payload).subscribe({
         next: () => {
           this.cancelForm();
           this.loadAll();
@@ -845,7 +855,7 @@ export class SyncProfilesComponent implements OnInit {
         },
       });
     } else {
-      this.api.createSyncProfile(this.currentProfile).subscribe({
+      this.api.createSyncProfile(payload).subscribe({
         next: () => {
           this.cancelForm();
           this.loadAll();

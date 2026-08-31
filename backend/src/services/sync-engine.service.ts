@@ -196,13 +196,24 @@ export class SyncEngineService {
     }
   }
 
+  /**
+   * Processes a Radarr movie synchronization event or library scan item.
+   *
+   * Logic:
+   * 1. Check if the target child instance already has a file for this movie.
+   * 2. Inspect the main file to detect whether it contains the child instance's target audio language.
+   * 3. Target language present -> create zero-space hardlink/symlink and rescan child instance (returns 'linked').
+   * 4. Target language missing ->
+   *    - If searchIfMissing is TRUE: trigger search on child indexers to grab a separate language release (returns 'search_triggered').
+   *    - If searchIfMissing is FALSE: skip without triggering search (returns 'skipped', no-op for linking/downloading).
+   */
   async processMovie(
     syncProfile: SyncProfile,
     mainInstance: Instance,
     childInstance: Instance,
     movie: RadarrMovie,
     movieFile: RadarrMovieFile
-  ): Promise<'linked' | 'search_triggered' | 'already_exists' | 'error'> {
+  ): Promise<'linked' | 'search_triggered' | 'already_exists' | 'error' | 'skipped'> {
     try {
       const childRadarr = new RadarrService(childInstance.url, childInstance.apiKey);
       let targetMovie = await childRadarr.getMovieByTmdbId(movie.tmdbId);
@@ -231,6 +242,7 @@ export class SyncEngineService {
       await this.trackMediaItem(movie.tmdbId.toString(), 'movie', movie.title, movie.year, mainInstance.id, movie.id, movieFile.path, ['en']);
 
       if (hasLang) {
+        // Main file contains target audio: link and rescan child
         const linked = await this.linker.linkExists(movieFile.path, syncProfile.mainPath, syncProfile.childPath);
         if (!linked) {
           await this.linker.linkMedia(movieFile.path, syncProfile.mainPath, syncProfile.childPath, syncProfile.linkType);
@@ -239,17 +251,30 @@ export class SyncEngineService {
         }
         return 'linked';
       } else if (syncProfile.searchIfMissing) {
+        // Target audio is missing AND auto-search is enabled: dispatch search to indexers
         await childRadarr.searchMovie([targetMovie.id]);
         await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'search_triggered', 'Searched for missing language');
         return 'search_triggered';
       }
-      return 'error';
+      // Target audio is missing AND auto-search is disabled: no-op (file cannot be linked, search skipped)
+      return 'skipped';
     } catch (e: any) {
       await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'error', e.message);
       return 'error';
     }
   }
 
+  /**
+   * Processes a Sonarr episode synchronization event or library scan item.
+   *
+   * Logic:
+   * 1. Check if the target child instance already has a file for this episode.
+   * 2. Inspect the main file to detect whether it contains the child instance's target audio language.
+   * 3. Target language present -> create zero-space hardlink/symlink and rescan child series (returns 'linked').
+   * 4. Target language missing ->
+   *    - If searchIfMissing is TRUE: trigger search on child indexers to grab a separate language release (returns 'search_triggered').
+   *    - If searchIfMissing is FALSE: skip without triggering search (returns 'skipped', no-op for linking/downloading).
+   */
   async processEpisode(
     syncProfile: SyncProfile,
     mainInstance: Instance,
@@ -257,7 +282,7 @@ export class SyncEngineService {
     series: SonarrSeries,
     episode: SonarrEpisode,
     episodeFile: SonarrEpisodeFile
-  ): Promise<'linked' | 'search_triggered' | 'already_exists' | 'error'> {
+  ): Promise<'linked' | 'search_triggered' | 'already_exists' | 'error' | 'skipped'> {
     try {
       const childSonarr = new SonarrService(childInstance.url, childInstance.apiKey);
       let targetSeries = await childSonarr.getSeriesByTvdbId(series.tvdbId);
@@ -287,6 +312,7 @@ export class SyncEngineService {
       const hasLang = await this.mediaInspector.hasLanguage(episodeFile.path, childInstance.language, episodeFile.mediaInfo);
 
       if (hasLang) {
+        // Main episode file contains target audio: link and rescan child series
         const linked = await this.linker.linkExists(episodeFile.path, syncProfile.mainPath, syncProfile.childPath);
         if (!linked) {
           await this.linker.linkMedia(episodeFile.path, syncProfile.mainPath, syncProfile.childPath, syncProfile.linkType);
@@ -295,13 +321,15 @@ export class SyncEngineService {
         }
         return 'linked';
       } else if (syncProfile.searchIfMissing) {
+        // Target audio is missing AND auto-search is enabled: dispatch search for episode on indexers
         if (ce) {
           await childSonarr.searchEpisodes([ce.id]);
           await this.logAction(syncProfile.id, `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 'episode', series.tvdbId.toString(), 'search_triggered', 'Triggered search');
           return 'search_triggered';
         }
       }
-      return 'error';
+      // Target audio is missing AND auto-search is disabled: no-op (file cannot be linked, search skipped)
+      return 'skipped';
     } catch (e: any) {
       await this.logAction(syncProfile.id, `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 'episode', series.tvdbId.toString(), 'error', e.message);
       return 'error';

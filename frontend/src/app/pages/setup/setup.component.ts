@@ -197,11 +197,12 @@ interface SetupStep {
           </div>
 
           <!-- Modern Switch Controls -->
+          <!-- Consistent Modern Switch Controls -->
           <div style="display:flex;flex-direction:column;gap:var(--space-sm);margin-top:var(--space-md);">
             <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
               <div>
                 <div style="font-weight:600;font-size:0.9rem;">Enable Active Scanning & Syncing</div>
-                <div style="font-size:0.78rem;color:var(--text-muted);">Include this profile in automated background syncs and scans</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);">Include this profile in automated background syncs, library scans, and webhook imports</div>
               </div>
               <label class="switch">
                 <input type="checkbox" [(ngModel)]="newProfile.enabled">
@@ -212,7 +213,7 @@ interface SetupStep {
             <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
               <div>
                 <div style="font-weight:600;font-size:0.9rem;">Auto-Search Missing Audio</div>
-                <div style="font-size:0.78rem;color:var(--text-muted);">Automatically search child instance if target audio is missing after delay</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);">Automatically search indexers for secondary audio if missing on main. When off, missing audio items are ignored (no-op) and only matching files are linked.</div>
               </div>
               <label class="switch">
                 <input type="checkbox" [(ngModel)]="newProfile.searchIfMissing">
@@ -220,10 +221,10 @@ interface SetupStep {
               </label>
             </div>
 
-            <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+            <div *ngIf="isSonarrProfile()" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
               <div>
                 <div style="font-weight:600;font-size:0.9rem;">Sync Monitored Seasons</div>
-                <div style="font-size:0.78rem;color:var(--text-muted);">Sync monitored season status across Sonarr instances</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);">Keep season monitor status synchronized across Sonarr instances (Sonarr only)</div>
               </div>
               <label class="switch">
                 <input type="checkbox" [(ngModel)]="newProfile.syncMonitoredSeasons">
@@ -296,6 +297,11 @@ export class SetupComponent implements OnInit {
     return this.instances.filter(i => !i.isMain);
   }
 
+  isSonarrProfile(): boolean {
+    const main = this.instances.find(i => i.id === Number(this.newProfile.mainInstanceId));
+    return main?.type === 'sonarr';
+  }
+
   onInstanceSaved(data: Partial<Instance>) {
     this.api.createInstance(data).subscribe({
       next: () => {
@@ -320,7 +326,11 @@ export class SetupComponent implements OnInit {
 
   finishSetup() {
     if (this.newProfile.mainInstanceId && this.newProfile.childInstanceId) {
-      this.api.createSyncProfile(this.newProfile).subscribe({
+      const payload = {
+        ...this.newProfile,
+        syncMonitoredSeasons: this.isSonarrProfile() ? (this.newProfile.syncMonitoredSeasons ?? false) : false
+      };
+      this.api.createSyncProfile(payload).subscribe({
         next: (profile) => {
           this.completeSetupAndRedirect(profile.id);
         },

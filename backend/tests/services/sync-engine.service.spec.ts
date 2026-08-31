@@ -92,6 +92,18 @@ describe('SyncEngineService', () => {
       expect(RadarrService.prototype.searchMovie).toHaveBeenCalledWith([200]);
     });
 
+    it('should return skipped when child language is NOT present and searchIfMissing is false', async () => {
+      mediaInspector.hasLanguage.mockResolvedValue(false);
+      (RadarrService.prototype.getMovieByTmdbId as jest.Mock).mockResolvedValue({ id: 200, hasFile: false });
+      mockProfile.searchIfMissing = false;
+      
+      const result = await syncEngine.processMovie(mockProfile, mockMainInstance, mockChildInstance, mockMovie, mockMovieFile);
+      
+      expect(result).toBe('skipped');
+      expect(RadarrService.prototype.searchMovie).not.toHaveBeenCalled();
+      expect(linker.linkMedia).not.toHaveBeenCalled();
+    });
+
     it('should return already_exists when movie exists in child with file', async () => {
       mediaInspector.hasLanguage.mockResolvedValue(true);
       (RadarrService.prototype.getMovieByTmdbId as jest.Mock).mockResolvedValue({ id: 200, hasFile: true });
@@ -157,6 +169,17 @@ describe('SyncEngineService', () => {
       
       expect(result).toBe('search_triggered');
       expect(SonarrService.prototype.searchEpisodes).toHaveBeenCalledWith([201]);
+    });
+
+    it('returns skipped when language does not match and searchIfMissing is false', async () => {
+      mediaInspector.hasLanguage.mockResolvedValue(false);
+      mockProfile.searchIfMissing = false;
+
+      const result = await syncEngine.processEpisode(mockProfile, mockMainInstance, mockChildInstance, mockSeries, mockEpisode, mockEpisodeFile);
+      
+      expect(result).toBe('skipped');
+      expect(SonarrService.prototype.searchEpisodes).not.toHaveBeenCalled();
+      expect(linker.linkMedia).not.toHaveBeenCalled();
     });
   });
 

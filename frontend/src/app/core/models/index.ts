@@ -16,10 +16,20 @@ export interface SyncProfile {
   id: number;
   mainInstanceId: number;
   childInstanceId: number;
+  /** Whether this sync profile is active in automated scans and syncs */
   enabled: boolean;
+  /** Linking strategy: 'hardlink' (default, 0 extra storage) or 'symlink' */
   linkType: 'hardlink' | 'symlink';
+  /** Delay in hours before searching the child instance if target audio is missing */
   delayHours: number;
+  /**
+   * If true: child instance automatically searches indexers when main file lacks target audio.
+   * If false: child instance does NOT search indexers; missing audio items are ignored (no-op) and only compatible files are linked.
+   */
   searchIfMissing: boolean;
+  /**
+   * Sonarr only: keeps season monitor status synchronized across Sonarr instances.
+   */
   syncMonitoredSeasons: boolean;
   mainPath: string;
   childPath: string;

@@ -1,0 +1,291 @@
+import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Instance, RootFolder, QualityProfile } from '../../core/models';
+import { ApiService } from '../../core/services/api.service';
+
+export function normalizeUrl(url: string): string {
+  let normalized = (url || '').trim();
+  if (!normalized) return '';
+  if (!/^https?:\/\//i.test(normalized)) {
+    normalized = `http://${normalized}`;
+  }
+  normalized = normalized.replace(/\/+$/, '');
+  normalized = normalized.replace(/\/api(\/v\d+)?$/i, '');
+  return normalized;
+}
+
+@Component({
+  selector: 'app-instance-form',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
+    <div class="card" style="margin-bottom:var(--space-md);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
+        <h4 style="font-weight:600;">{{ isEditing ? 'Edit' : 'Add' }} {{ typeLabel }} Instance</h4>
+        <button class="btn btn-ghost btn-sm" (click)="cancel.emit()" *ngIf="showCancel">✕</button>
+      </div>
+
+      <!-- Type selector — only shown when fixedType is not set -->
+      <div class="form-group" *ngIf="!fixedType">
+        <label class="form-label" for="instance-type">Type</label>
+        <select class="form-select" [(ngModel)]="formData.type" id="instance-type" [disabled]="isEditing">
+          <option value="radarr">Radarr (Movies)</option>
+          <option value="sonarr">Sonarr (Series)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="instance-name">Name</label>
+        <input class="form-input" [(ngModel)]="formData.name" id="instance-name" [placeholder]="namePlaceholder" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="instance-url">Host / URL</label>
+        <input
+          class="form-input"
+          [(ngModel)]="formData.url"
+          (blur)="onUrlBlur()"
+          id="instance-url"
+          [placeholder]="urlPlaceholder"
+        />
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">
+          e.g. <code>192.168.1.100:7878</code> or <code>http://radarr.local:7878</code>
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="instance-apikey">API Key</label>
+        <div style="position:relative;">
+          <input
+            class="form-input"
+            [type]="hideApiKey ? 'password' : 'text'"
+            [(ngModel)]="formData.apiKey"
+            id="instance-apikey"
+            placeholder="Found in Settings → General → Security"
+            style="width:100%;padding-right:40px;"
+          />
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            (click)="hideApiKey = !hideApiKey"
+            style="position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:4px 8px;"
+          >
+            {{ hideApiKey ? '👁️' : '🔒' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="instance-language">Primary Audio Language</label>
+        <select class="form-select" [(ngModel)]="formData.language" id="instance-language">
+          <option value="en">English 🇬🇧</option>
+          <option value="fr">French 🇫🇷</option>
+          <option value="de">German 🇩🇪</option>
+          <option value="es">Spanish 🇪🇸</option>
+          <option value="it">Italian 🇮🇹</option>
+          <option value="ja">Japanese 🇯🇵</option>
+        </select>
+      </div>
+
+      <!-- Source of Truth checkbox: only visible when not explicitly fixed -->
+      <div *ngIf="fixedIsMain === undefined" style="display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-md);">
+        <input type="checkbox" id="isMainCheck" [(ngModel)]="formData.isMain" style="accent-color:var(--accent-primary);width:18px;height:18px;cursor:pointer;" />
+        <label for="isMainCheck" style="cursor:pointer;font-size:0.9rem;font-weight:500;">
+          Source of Truth Instance (Main library)
+        </label>
+      </div>
+
+      <!-- Live Test Result Banner -->
+      <div *ngIf="testResult" class="connection-test" [ngClass]="testResult.success ? 'success' : 'failure'">
+        <span *ngIf="testResult.success">✓ Connected successfully</span>
+        <span *ngIf="testResult.success && testResult.version"> — v{{ testResult.version }}</span>
+        <span *ngIf="testResult.success && testResult.instanceName"> ({{ testResult.instanceName }})</span>
+        <span *ngIf="!testResult.success">✕ Failed: {{ testResult.error }}</span>
+      </div>
+
+      <div *ngIf="isTesting" class="connection-test testing">
+        <span class="spinner"></span> Testing connection & discovering server settings...
+      </div>
+
+      <!-- Optional Auto-Discovered Server Settings -->
+      <div *ngIf="rootFolders.length > 0 || qualityProfiles.length > 0" style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+        <div style="font-size:0.85rem;font-weight:600;color:var(--accent-primary);margin-bottom:var(--space-sm);">
+          ⚙️ Auto-Discovered Server Settings
+        </div>
+
+        @if (rootFolders.length > 0) {
+          <div class="form-group" style="margin-bottom:var(--space-sm);">
+            <label class="form-label">Root Media Folder</label>
+            <select class="form-select" [(ngModel)]="formData.rootFolderPath">
+              @for (folder of rootFolders; track folder.id) {
+                <option [value]="folder.path">{{ folder.path }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        @if (qualityProfiles.length > 0) {
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Quality Profile</label>
+            <select class="form-select" [(ngModel)]="formData.qualityProfileId">
+              @for (profile of qualityProfiles; track profile.id) {
+                <option [value]="profile.id">{{ profile.name }}</option>
+              }
+            </select>
+          </div>
+        }
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-lg);">
+        <button class="btn btn-secondary" (click)="testConnection()" [disabled]="isTesting || !hasMinFields" id="test-connection-btn">
+          Test Connection
+        </button>
+        <button class="btn btn-primary" (click)="save()" [disabled]="!isValid" id="save-instance-btn">
+          {{ isEditing ? 'Update' : 'Add' }} Instance
+        </button>
+      </div>
+    </div>
+  `,
+})
+export class InstanceFormComponent {
+  @Input() isEditing = false;
+  @Input() showCancel = true;
+
+  @Input() set fixedIsMain(val: boolean | undefined) {
+    this._fixedIsMain = val;
+    if (val !== undefined) {
+      this.formData.isMain = val;
+    }
+  }
+  get fixedIsMain(): boolean | undefined {
+    return this._fixedIsMain;
+  }
+  private _fixedIsMain: boolean | undefined;
+
+  @Input() set fixedType(val: 'radarr' | 'sonarr' | undefined) {
+    this._fixedType = val;
+    if (val) {
+      this.formData.type = val;
+    }
+  }
+  get fixedType(): 'radarr' | 'sonarr' | undefined {
+    return this._fixedType;
+  }
+  private _fixedType: 'radarr' | 'sonarr' | undefined;
+
+  @Input() set instance(val: Instance | null) {
+    if (val) {
+      this.formData = { ...val };
+      this.isEditing = true;
+    }
+  }
+
+  @Output() saved = new EventEmitter<Partial<Instance>>();
+  @Output() cancel = new EventEmitter<void>();
+
+  formData: Partial<Instance> = {
+    type: 'radarr',
+    name: '',
+    url: '',
+    apiKey: '',
+    language: 'en',
+    rootFolderPath: '',
+    qualityProfileId: 1,
+    isMain: false,
+  };
+
+  testResult: { success: boolean; version?: string; instanceName?: string; error?: string } | null = null;
+  isTesting = false;
+  hideApiKey = true;
+  rootFolders: RootFolder[] = [];
+  qualityProfiles: QualityProfile[] = [];
+
+  constructor(private api: ApiService) {}
+
+  get isValid(): boolean {
+    return !!(this.formData.type && this.formData.name && this.formData.url && this.formData.apiKey);
+  }
+
+  get hasMinFields(): boolean {
+    return !!(this.formData.type && this.formData.url && this.formData.apiKey);
+  }
+
+  get typeLabel(): string {
+    return this.formData.type === 'radarr' ? 'Radarr' : 'Sonarr';
+  }
+
+  get namePlaceholder(): string {
+    return this.formData.type === 'radarr' ? 'e.g. Radarr Main / Radarr 4K' : 'e.g. Sonarr Main / Sonarr Anime';
+  }
+
+  get urlPlaceholder(): string {
+    return this.formData.type === 'radarr' ? '192.168.1.100:7878' : '192.168.1.100:8989';
+  }
+
+  onUrlBlur() {
+    if (this.formData.url) {
+      this.formData.url = normalizeUrl(this.formData.url);
+    }
+  }
+
+  testConnection() {
+    if (!this.hasMinFields) return;
+    this.onUrlBlur();
+    this.isTesting = true;
+    this.testResult = null;
+
+    this.api.testDirectConnection({
+      type: this.formData.type || 'radarr',
+      url: this.formData.url || '',
+      apiKey: this.formData.apiKey || '',
+    }).subscribe({
+      next: (res: any) => {
+        this.isTesting = false;
+        this.testResult = res;
+        if (res.url) {
+          this.formData.url = res.url;
+        }
+        if (res.success) {
+          this.fetchMetadata();
+        }
+      },
+      error: (err) => {
+        this.isTesting = false;
+        this.testResult = { success: false, error: err.error?.error || err.message || 'Connection failed' };
+      },
+    });
+  }
+
+  fetchMetadata() {
+    const { type, url, apiKey } = this.formData;
+    if (!type || !url || !apiKey) return;
+
+    this.api.fetchDirectRootFolders({ type, url, apiKey }).subscribe({
+      next: (folders) => {
+        this.rootFolders = folders || [];
+        if (this.rootFolders.length > 0 && !this.formData.rootFolderPath) {
+          this.formData.rootFolderPath = this.rootFolders[0].path;
+        }
+      },
+      error: () => {},
+    });
+
+    this.api.fetchDirectQualityProfiles({ type, url, apiKey }).subscribe({
+      next: (profiles) => {
+        this.qualityProfiles = profiles || [];
+        if (this.qualityProfiles.length > 0 && !this.formData.qualityProfileId) {
+          this.formData.qualityProfileId = this.qualityProfiles[0].id;
+        }
+      },
+      error: () => {},
+    });
+  }
+
+  save() {
+    this.onUrlBlur();
+    if (!this.isValid) return;
+    this.saved.emit({ ...this.formData });
+  }
+}

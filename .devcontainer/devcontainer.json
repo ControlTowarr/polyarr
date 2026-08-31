@@ -1,0 +1,25 @@
+{
+  "name": "Polyarr Dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Angular.ng-template",
+        "ms-azuretools.vscode-docker",
+        "orta.vscode-jest"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "typescript.preferences.importModuleSpecifier": "relative"
+      }
+    }
+  },
+  "forwardPorts": [3000, 4200],
+  "postCreateCommand": "npm install && npm rebuild",
+  "remoteUser": "node"
+}

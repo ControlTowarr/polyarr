@@ -1,0 +1,14 @@
+services:
+  polyarr:
+    build: .
+    container_name: polyarr
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - /path/to/media:/media  # Mount your media library - adjust path
+    environment:
+      - PORT=3000
+      - LOG_LEVEL=info
+      - DATA_DIR=/app/data
+    restart: unless-stopped

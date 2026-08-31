@@ -1,0 +1,23 @@
+{
+  "name": "polyarr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-language Radarr/Sonarr sync tool",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "test": "cd backend && npm test",
+    "start": "cd backend && npm start"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

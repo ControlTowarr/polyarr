@@ -139,6 +139,16 @@ export interface ScanResult {
   errors: number;
 }
 
+export interface SyncResult {
+  total: number;
+  linked: number;
+  alreadyLinked: number;
+  alreadyExistsChild: number;
+  searchTriggered: number;
+  skipped: number;
+  errors: number;
+}
+
 export interface DryRunItem {
   id: string;
   title: string;

@@ -110,7 +110,15 @@ export class SyncEngineService {
     }
   }
 
-  async syncProfile(profileId: number): Promise<{ total: number; linked: number; searchTriggered: number; errors: number }> {
+  async syncProfile(profileId: number): Promise<{
+    total: number;
+    linked: number;
+    alreadyLinked: number;
+    alreadyExistsChild: number;
+    searchTriggered: number;
+    skipped: number;
+    errors: number;
+  }> {
     const profile = await this.db.getRepository(SyncProfile).findOne({
       where: { id: profileId },
       relations: ['mainInstance', 'childInstance']
@@ -122,40 +130,81 @@ export class SyncEngineService {
 
     const main = profile.mainInstance;
     const child = profile.childInstance;
-    const stats = { total: 0, linked: 0, searchTriggered: 0, errors: 0 };
+    const stats = {
+      total: 0,
+      linked: 0,
+      alreadyLinked: 0,
+      alreadyExistsChild: 0,
+      searchTriggered: 0,
+      skipped: 0,
+      errors: 0
+    };
+
+    logger.info(`[Sync] Starting manual sync for profile ${profile.id}: ${main.name} (${main.type}) ➔ ${child.name}`);
 
     if (main.type === 'radarr') {
       const radarr = new RadarrService(main.url, main.apiKey);
       const movies = await radarr.getMovies();
       for (const movie of movies) {
-        if (!movie.hasFile || !movie.movieFile) continue;
+        if (!movie.hasFile) continue;
+        let movieFile = movie.movieFile;
+        if (!movieFile && movie.id) {
+          try {
+            const files = await radarr.getMovieFiles(movie.id);
+            if (files && files.length > 0) movieFile = files[0];
+          } catch (fileErr: any) {
+            logger.warn(`Could not fetch movie file for ${movie.title}:`, fileErr);
+          }
+        }
+        if (!movieFile || !movieFile.path) continue;
         stats.total++;
         try {
-          const res = await this.processMovie(profile, main, child, movie, movie.movieFile);
+          const res = await this.processMovie(profile, main, child, movie, movieFile);
           if (res === 'linked') stats.linked++;
+          else if (res === 'already_linked') stats.alreadyLinked++;
           else if (res === 'search_triggered') stats.searchTriggered++;
-        } catch (e) {
+          else if (res === 'already_exists') stats.alreadyExistsChild++;
+          else if (res === 'skipped') stats.skipped++;
+          else if (res === 'error') stats.errors++;
+        } catch (e: any) {
           stats.errors++;
+          await this.logAction(profile.id, movie.title, 'movie', movie.tmdbId?.toString() || movie.id.toString(), 'error', e.message);
         }
       }
     } else if (main.type === 'sonarr') {
       const sonarr = new SonarrService(main.url, main.apiKey);
       const seriesList = await sonarr.getSeries();
       for (const s of seriesList) {
-        const episodes = await sonarr.getEpisodes(s.id);
-        const files = await sonarr.getEpisodeFiles(s.id);
-        for (const ep of episodes) {
-          if (!ep.hasFile || !ep.episodeFileId) continue;
-          const file = files.find(f => f.id === ep.episodeFileId);
-          if (!file) continue;
-          stats.total++;
-          try {
-            const res = await this.processEpisode(profile, main, child, s, ep, file);
-            if (res === 'linked') stats.linked++;
-            else if (res === 'search_triggered') stats.searchTriggered++;
-          } catch (e) {
-            stats.errors++;
+        try {
+          const [episodes, files] = await Promise.all([
+            sonarr.getEpisodes(s.id),
+            sonarr.getEpisodeFiles(s.id)
+          ]);
+          const fileMap = new Map<number, SonarrEpisodeFile>();
+          for (const f of files) {
+            fileMap.set(f.id, f);
           }
+          for (const ep of episodes) {
+            if (!ep.hasFile || !ep.episodeFileId) continue;
+            const file = fileMap.get(ep.episodeFileId);
+            if (!file || !file.path) continue;
+            stats.total++;
+            try {
+              const res = await this.processEpisode(profile, main, child, s, ep, file);
+              if (res === 'linked') stats.linked++;
+              else if (res === 'already_linked') stats.alreadyLinked++;
+              else if (res === 'search_triggered') stats.searchTriggered++;
+              else if (res === 'already_exists') stats.alreadyExistsChild++;
+              else if (res === 'skipped') stats.skipped++;
+              else if (res === 'error') stats.errors++;
+            } catch (e: any) {
+              stats.errors++;
+              await this.logAction(profile.id, `${s.title} S${ep.seasonNumber}E${ep.episodeNumber}`, 'episode', s.tvdbId?.toString() || s.id.toString(), 'error', e.message);
+            }
+          }
+        } catch (seriesErr: any) {
+          stats.errors++;
+          await this.logAction(profile.id, s.title, 'episode', s.tvdbId?.toString() || s.id.toString(), 'error', seriesErr.message);
         }
       }
 
@@ -163,6 +212,18 @@ export class SyncEngineService {
         await this.syncMonitoredSeasons(profile);
       }
     }
+
+    const summaryDetails = `Sync completed for ${main.name} ➔ ${child.name}: ${stats.total} total items scanned (${stats.linked} linked, ${stats.alreadyLinked} already linked, ${stats.searchTriggered} searches triggered, ${stats.skipped} skipped, ${stats.errors} errors).`;
+    logger.info(`[Sync] ${summaryDetails}`);
+
+    await this.logAction(
+      profile.id,
+      `Sync Run: ${main.name} ➔ ${child.name}`,
+      main.type === 'radarr' ? 'movie' : 'episode',
+      `sync-${profile.id}-${Date.now()}`,
+      stats.errors > 0 ? 'error' : (stats.linked > 0 ? 'linked' : (stats.searchTriggered > 0 ? 'search_triggered' : 'added')),
+      summaryDetails
+    );
 
     return stats;
   }
@@ -196,13 +257,19 @@ export class SyncEngineService {
     }
   }
 
+  private getEffectivePaths(profile: SyncProfile, main: Instance, child: Instance): { mainPath: string; childPath: string } {
+    const mainPath = (profile.mainPath && profile.mainPath.trim() !== '') ? profile.mainPath : (main.rootFolderPath || '');
+    const childPath = (profile.childPath && profile.childPath.trim() !== '') ? profile.childPath : (child.rootFolderPath || '');
+    return { mainPath, childPath };
+  }
+
   /**
    * Processes a Radarr movie synchronization event or library scan item.
    *
    * Logic:
    * 1. Check if the target child instance already has a file for this movie.
    * 2. Inspect the main file to detect whether it contains the child instance's target audio language.
-   * 3. Target language present -> create zero-space hardlink/symlink and rescan child instance (returns 'linked').
+   * 3. Target language present -> create zero-space hardlink/symlink and rescan child instance (returns 'linked' or 'already_linked').
    * 4. Target language missing ->
    *    - If searchIfMissing is TRUE: trigger search on child indexers to grab a separate language release (returns 'search_triggered').
    *    - If searchIfMissing is FALSE: skip without triggering search (returns 'skipped', no-op for linking/downloading).
@@ -213,7 +280,7 @@ export class SyncEngineService {
     childInstance: Instance,
     movie: RadarrMovie,
     movieFile: RadarrMovieFile
-  ): Promise<'linked' | 'search_triggered' | 'already_exists' | 'error' | 'skipped'> {
+  ): Promise<'linked' | 'already_linked' | 'search_triggered' | 'already_exists' | 'error' | 'skipped'> {
     try {
       const childRadarr = new RadarrService(childInstance.url, childInstance.apiKey);
       let targetMovie = await childRadarr.getMovieByTmdbId(movie.tmdbId);
@@ -232,7 +299,7 @@ export class SyncEngineService {
           searchForMovie: !hasLang && syncProfile.searchIfMissing
         });
         
-        await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'added', 'Added missing movie to child');
+        await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'added', `Added missing movie to ${childInstance.name}`);
       } else {
         if (targetMovie.hasFile) {
           return 'already_exists';
@@ -241,19 +308,22 @@ export class SyncEngineService {
 
       await this.trackMediaItem(movie.tmdbId.toString(), 'movie', movie.title, movie.year, mainInstance.id, movie.id, movieFile.path, ['en']);
 
+      const { mainPath, childPath } = this.getEffectivePaths(syncProfile, mainInstance, childInstance);
+
       if (hasLang) {
         // Main file contains target audio: link and rescan child
-        const linked = await this.linker.linkExists(movieFile.path, syncProfile.mainPath, syncProfile.childPath);
+        const linked = await this.linker.linkExists(movieFile.path, mainPath, childPath);
         if (!linked) {
-          await this.linker.linkMedia(movieFile.path, syncProfile.mainPath, syncProfile.childPath, syncProfile.linkType);
+          await this.linker.linkMedia(movieFile.path, mainPath, childPath, syncProfile.linkType);
           await childRadarr.rescanMovie(targetMovie.id);
-          await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'linked', 'Hardlinked file');
+          await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'linked', `Hardlinked file to ${childInstance.name}`);
+          return 'linked';
         }
-        return 'linked';
+        return 'already_linked';
       } else if (syncProfile.searchIfMissing) {
         // Target audio is missing AND auto-search is enabled: dispatch search to indexers
         await childRadarr.searchMovie([targetMovie.id]);
-        await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'search_triggered', 'Searched for missing language');
+        await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'search_triggered', `Searched for missing language on ${childInstance.name}`);
         return 'search_triggered';
       }
       // Target audio is missing AND auto-search is disabled: no-op (file cannot be linked, search skipped)
@@ -270,7 +340,7 @@ export class SyncEngineService {
    * Logic:
    * 1. Check if the target child instance already has a file for this episode.
    * 2. Inspect the main file to detect whether it contains the child instance's target audio language.
-   * 3. Target language present -> create zero-space hardlink/symlink and rescan child series (returns 'linked').
+   * 3. Target language present -> create zero-space hardlink/symlink and rescan child series (returns 'linked' or 'already_linked').
    * 4. Target language missing ->
    *    - If searchIfMissing is TRUE: trigger search on child indexers to grab a separate language release (returns 'search_triggered').
    *    - If searchIfMissing is FALSE: skip without triggering search (returns 'skipped', no-op for linking/downloading).
@@ -282,7 +352,7 @@ export class SyncEngineService {
     series: SonarrSeries,
     episode: SonarrEpisode,
     episodeFile: SonarrEpisodeFile
-  ): Promise<'linked' | 'search_triggered' | 'already_exists' | 'error' | 'skipped'> {
+  ): Promise<'linked' | 'already_linked' | 'search_triggered' | 'already_exists' | 'error' | 'skipped'> {
     try {
       const childSonarr = new SonarrService(childInstance.url, childInstance.apiKey);
       let targetSeries = await childSonarr.getSeriesByTvdbId(series.tvdbId);
@@ -299,7 +369,7 @@ export class SyncEngineService {
           seasons: series.seasons.map(s => ({ seasonNumber: s.seasonNumber, monitored: s.monitored })),
           searchForMissingEpisodes: false
         });
-        await this.logAction(syncProfile.id, series.title, 'episode', series.tvdbId.toString(), 'added', 'Added series');
+        await this.logAction(syncProfile.id, series.title, 'episode', series.tvdbId.toString(), 'added', `Added series to ${childInstance.name}`);
       }
 
       const childEpisodes = await childSonarr.getEpisodes(targetSeries.id);
@@ -311,20 +381,23 @@ export class SyncEngineService {
 
       const hasLang = await this.mediaInspector.hasLanguage(episodeFile.path, childInstance.language, episodeFile.mediaInfo);
 
+      const { mainPath, childPath } = this.getEffectivePaths(syncProfile, mainInstance, childInstance);
+
       if (hasLang) {
         // Main episode file contains target audio: link and rescan child series
-        const linked = await this.linker.linkExists(episodeFile.path, syncProfile.mainPath, syncProfile.childPath);
+        const linked = await this.linker.linkExists(episodeFile.path, mainPath, childPath);
         if (!linked) {
-          await this.linker.linkMedia(episodeFile.path, syncProfile.mainPath, syncProfile.childPath, syncProfile.linkType);
+          await this.linker.linkMedia(episodeFile.path, mainPath, childPath, syncProfile.linkType);
           await childSonarr.rescanSeries(targetSeries.id);
-          await this.logAction(syncProfile.id, `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 'episode', series.tvdbId.toString(), 'linked', 'Linked file');
+          await this.logAction(syncProfile.id, `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 'episode', series.tvdbId.toString(), 'linked', `Linked file to ${childInstance.name}`);
+          return 'linked';
         }
-        return 'linked';
+        return 'already_linked';
       } else if (syncProfile.searchIfMissing) {
         // Target audio is missing AND auto-search is enabled: dispatch search for episode on indexers
         if (ce) {
           await childSonarr.searchEpisodes([ce.id]);
-          await this.logAction(syncProfile.id, `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 'episode', series.tvdbId.toString(), 'search_triggered', 'Triggered search');
+          await this.logAction(syncProfile.id, `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 'episode', series.tvdbId.toString(), 'search_triggered', `Triggered search on ${childInstance.name}`);
           return 'search_triggered';
         }
       }
@@ -456,17 +529,28 @@ export class SyncEngineService {
     }
 
     for (const movie of mainMovies) {
-      if (!movie.hasFile || !movie.movieFile) continue;
+      if (!movie.hasFile) continue;
+      let movieFile = movie.movieFile;
+      if (!movieFile && movie.id) {
+        try {
+          const files = await mainRadarr.getMovieFiles(movie.id);
+          if (files && files.length > 0) movieFile = files[0];
+        } catch (err: any) {
+          logger.warn(`Could not fetch movie file for ${movie.title}:`, err);
+        }
+      }
+      if (!movieFile || !movieFile.path) continue;
       report.summary.totalScanned++;
 
       const externalId = movie.tmdbId?.toString() || movie.id.toString();
-      const sourcePath = movie.movieFile.path || '';
-      const destPath = this.linker.translatePath(sourcePath, profile.mainPath, profile.childPath);
+      const sourcePath = movieFile.path || '';
+      const { mainPath, childPath } = this.getEffectivePaths(profile, main, child);
+      const destPath = this.linker.translatePath(sourcePath, mainPath, childPath);
 
       try {
-        const detectedLangs = await this.mediaInspector.detectLanguages(sourcePath, movie.movieFile.mediaInfo);
+        const detectedLangs = await this.mediaInspector.detectLanguages(sourcePath, movieFile.mediaInfo);
         const hasTargetLang = detectedLangs.includes(targetLang);
-        const linkExists = await this.linker.linkExists(sourcePath, profile.mainPath, profile.childPath);
+        const linkExists = await this.linker.linkExists(sourcePath, mainPath, childPath);
         const targetMovie = movie.tmdbId ? childMovieMap.get(movie.tmdbId) : undefined;
 
         const baseItem: Omit<DryRunItem, 'action' | 'reason'> = {
@@ -586,10 +670,11 @@ export class SyncEngineService {
           report.summary.totalScanned++;
 
           const sourcePath = file.path || '';
-          const destPath = this.linker.translatePath(sourcePath, profile.mainPath, profile.childPath);
+          const { mainPath, childPath } = this.getEffectivePaths(profile, main, child);
+          const destPath = this.linker.translatePath(sourcePath, mainPath, childPath);
           const detectedLangs = await this.mediaInspector.detectLanguages(sourcePath, file.mediaInfo);
           const hasTargetLang = detectedLangs.includes(targetLang);
-          const linkExists = await this.linker.linkExists(sourcePath, profile.mainPath, profile.childPath);
+          const linkExists = await this.linker.linkExists(sourcePath, mainPath, childPath);
           const childEp = childEpMap.get(`${ep.seasonNumber}_${ep.episodeNumber}`);
 
           const epTitle = `${series.title} S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`;

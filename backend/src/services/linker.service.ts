@@ -3,11 +3,15 @@ import * as path from 'path';
 
 export class LinkerService {
   translatePath(sourcePath: string, mainPath: string, childPath: string): string {
-    const normalizedSource = sourcePath.replace(/\\/g, '/');
-    const normalizedMain = mainPath.replace(/\\/g, '/');
-    const normalizedChild = childPath.replace(/\\/g, '/');
+    if (!sourcePath || !mainPath || !childPath) {
+      return sourcePath || '';
+    }
 
-    if (normalizedSource.startsWith(normalizedMain)) {
+    const normalizedSource = sourcePath.replace(/\\/g, '/');
+    const normalizedMain = mainPath.replace(/\\/g, '/').replace(/\/+$/, '');
+    const normalizedChild = childPath.replace(/\\/g, '/').replace(/\/+$/, '');
+
+    if (normalizedMain && normalizedSource.startsWith(normalizedMain)) {
       return normalizedSource.replace(normalizedMain, normalizedChild);
     }
     return sourcePath;

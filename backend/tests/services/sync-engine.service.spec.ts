@@ -347,4 +347,110 @@ describe('SyncEngineService', () => {
       expect(linker.linkMedia).not.toHaveBeenCalled();
     });
   });
+
+  describe('syncProfile', () => {
+    it('executes manual sync for Radarr profile and logs all actions', async () => {
+      const mockProfile = {
+        id: 1,
+        mainInstanceId: 1,
+        childInstanceId: 2,
+        linkType: 'hardlink',
+        mainPath: '/movies-main',
+        childPath: '/movies-child',
+        searchIfMissing: true,
+        mainInstance: { id: 1, name: 'Radarr Main', type: 'radarr', url: 'http://main-radarr', apiKey: 'k1', language: 'en' },
+        childInstance: { id: 2, name: 'Radarr French', type: 'radarr', url: 'http://child-radarr', apiKey: 'k2', language: 'fr', rootFolderPath: '/movies-child' }
+      };
+
+      mockRepository.findOne.mockResolvedValue(mockProfile);
+
+      (RadarrService.prototype.getMovies as jest.Mock).mockResolvedValue([
+        { id: 1, tmdbId: 101, title: 'Movie One', hasFile: true, movieFile: { id: 11, path: '/movies-main/Movie One/file.mkv' } },
+        { id: 2, tmdbId: 102, title: 'Movie Two', hasFile: true, movieFile: { id: 12, path: '/movies-main/Movie Two/file.mkv' } }
+      ]);
+      (RadarrService.prototype.getMovieByTmdbId as jest.Mock).mockResolvedValue(null);
+      (RadarrService.prototype.lookupMovie as jest.Mock).mockImplementation(async (tmdbId: number) => ({ tmdbId, title: `Movie ${tmdbId}` }));
+      (RadarrService.prototype.addMovie as jest.Mock).mockImplementation(async (params: any) => ({ id: params.tmdbId + 500, hasFile: false }));
+      (RadarrService.prototype.rescanMovie as jest.Mock).mockResolvedValue(undefined);
+      (RadarrService.prototype.searchMovie as jest.Mock).mockResolvedValue(undefined);
+
+      mediaInspector.hasLanguage.mockImplementation(async (path: string) => path.includes('Movie One'));
+      linker.linkExists.mockResolvedValue(false);
+
+      const stats = await syncEngine.syncProfile(1);
+
+      expect(stats.total).toBe(2);
+      expect(stats.linked).toBe(1);
+      expect(stats.searchTriggered).toBe(1);
+      expect(stats.errors).toBe(0);
+
+      // Verify that history logs were created for linked, search_triggered, and summary
+      expect((syncEngine as any).logAction).toHaveBeenCalledWith(
+        1,
+        'Movie One',
+        'movie',
+        '101',
+        'linked',
+        expect.stringContaining('Hardlinked file')
+      );
+      expect((syncEngine as any).logAction).toHaveBeenCalledWith(
+        1,
+        'Movie Two',
+        'movie',
+        '102',
+        'search_triggered',
+        expect.stringContaining('Searched for missing language')
+      );
+      expect((syncEngine as any).logAction).toHaveBeenCalledWith(
+        1,
+        expect.stringContaining('Sync Run'),
+        'movie',
+        expect.any(String),
+        'linked',
+        expect.stringContaining('Sync completed')
+      );
+    });
+
+    it('falls back to instance rootFolderPath when profile mainPath and childPath are empty', async () => {
+      const mockProfile = {
+        id: 1,
+        mainInstanceId: 1,
+        childInstanceId: 2,
+        linkType: 'hardlink',
+        mainPath: '',
+        childPath: '',
+        searchIfMissing: true,
+        mainInstance: { id: 1, name: 'Radarr EN', type: 'radarr', url: 'http://en-radarr', apiKey: 'k1', language: 'en', rootFolderPath: '/data/media/media/movies-en' },
+        childInstance: { id: 2, name: 'Radarr FR', type: 'radarr', url: 'http://fr-radarr', apiKey: 'k2', language: 'fr', rootFolderPath: '/data/media/media/movies-fr' }
+      };
+
+      mockRepository.findOne.mockResolvedValue(mockProfile);
+
+      (RadarrService.prototype.getMovies as jest.Mock).mockResolvedValue([
+        { id: 1, tmdbId: 101, title: '1991', hasFile: true, movieFile: { id: 11, path: '/data/media/media/movies-en/1991 (2018)/1991 (2018) Bluray-1080p.mkv' } }
+      ]);
+      (RadarrService.prototype.getMovieByTmdbId as jest.Mock).mockResolvedValue({ id: 201, hasFile: false });
+      (RadarrService.prototype.rescanMovie as jest.Mock).mockResolvedValue(undefined);
+
+      mediaInspector.hasLanguage.mockResolvedValue(true);
+      linker.linkExists.mockResolvedValue(false);
+
+      const stats = await syncEngine.processMovie(
+        mockProfile as any,
+        mockProfile.mainInstance as any,
+        mockProfile.childInstance as any,
+        { id: 1, tmdbId: 101, title: '1991', hasFile: true, movieFile: { id: 11, path: '/data/media/media/movies-en/1991 (2018)/1991 (2018) Bluray-1080p.mkv' } } as any,
+        { id: 11, path: '/data/media/media/movies-en/1991 (2018)/1991 (2018) Bluray-1080p.mkv' } as any
+      );
+
+      expect(stats).toBe('linked');
+      expect(linker.linkMedia).toHaveBeenCalledWith(
+        '/data/media/media/movies-en/1991 (2018)/1991 (2018) Bluray-1080p.mkv',
+        '/data/media/media/movies-en',
+        '/data/media/media/movies-fr',
+        'hardlink'
+      );
+    });
+  });
 });
+

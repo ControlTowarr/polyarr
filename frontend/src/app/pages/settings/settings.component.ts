@@ -227,7 +227,7 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
             <button class="btn btn-ghost btn-sm" (click)="editProfile(profile)">
               Edit
             </button>
-            <button class="btn btn-secondary btn-sm" (click)="runSync(profile.id)" [disabled]="!profile.enabled || isSyncing(profile.id)">
+            <button class="btn btn-secondary btn-sm" (click)="runSync(profile)" [disabled]="!profile.enabled || isSyncing(profile.id)">
               {{ isSyncing(profile.id) ? 'Syncing...' : 'Run Sync' }}
             </button>
             <button class="btn btn-ghost btn-sm" style="color:var(--color-danger);" (click)="deleteProfile(profile.id)">
@@ -1124,18 +1124,25 @@ export class SettingsComponent implements OnInit {
     }
   }
 
-  runSync(profileId: number) {
-    this.syncingProfileIds.add(profileId);
+  runSync(profile: SyncProfile) {
+    this.syncingProfileIds.add(profile.id);
+    this.toast.info(`Running sync for "${profile.mainInstance?.name || 'Main'} ➔ ${profile.childInstance?.name || 'Child'}"...`);
     this.cdr.detectChanges();
-    this.api.syncProfile(profileId).subscribe({
+    this.api.syncProfile(profile.id).subscribe({
       next: (res: any) => {
-        this.syncingProfileIds.delete(profileId);
+        this.syncingProfileIds.delete(profile.id);
         this.cdr.detectChanges();
-        this.toast.success(`Sync complete: ${res.linked || 0} hardlinked, ${res.searchTriggered || 0} searches triggered.`);
+        if (!res || res.total === 0) {
+          this.toast.info(`Sync complete for "${profile.mainInstance?.name || 'Main'}": No media files found to sync.`);
+        } else if (res.linked > 0 || res.searchTriggered > 0) {
+          this.toast.success(`Sync complete: ${res.linked} newly linked, ${res.searchTriggered} search(es) triggered (${res.alreadyLinked || 0} already in sync).`);
+        } else {
+          this.toast.success(`Sync complete: All ${res.total} media item(s) are already in sync (${res.alreadyLinked || 0} verified linked, ${res.skipped || 0} skipped).`);
+        }
         this.loadAll();
       },
       error: (err) => {
-        this.syncingProfileIds.delete(profileId);
+        this.syncingProfileIds.delete(profile.id);
         this.cdr.detectChanges();
         this.toast.error(`Sync failed: ${err.error?.error || err.message}`);
       },

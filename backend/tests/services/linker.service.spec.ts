@@ -27,6 +27,19 @@ describe('LinkerService', () => {
       expect(linkerService.translatePath(source, main, child)).toBe('/other/movies/Movie/file.mkv');
     });
 
+    it('handles trailing slashes on main and child paths', () => {
+      const source = '/data/movies/Movie/file.mkv';
+      const main = '/data/movies/';
+      const child = '/data/movies-fr/';
+      expect(linkerService.translatePath(source, main, child)).toBe('/data/movies-fr/Movie/file.mkv');
+    });
+
+    it('returns original source when mainPath or childPath is empty', () => {
+      const source = '/data/movies/Movie/file.mkv';
+      expect(linkerService.translatePath(source, '', '/data/movies-fr')).toBe(source);
+      expect(linkerService.translatePath(source, '/data/movies', '')).toBe(source);
+    });
+
     it('handles Windows-style backslashes', () => {
       const source = 'C:\\data\\movies\\Movie\\file.mkv';
       const main = 'C:\\data\\movies';

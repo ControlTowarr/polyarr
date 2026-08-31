@@ -12,6 +12,7 @@ import {
   RootFolder,
   QualityProfile,
   ScanResult,
+  DryRunReport,
   PaginatedResult,
   MediaQueryParams,
   HistoryQueryParams
@@ -99,6 +100,10 @@ export class ApiService {
 
   syncProfile(profileId: number): Observable<any> {
     return this.http.post<any>(`${this.baseUrl}/sync-profiles/${profileId}/sync`, {});
+  }
+
+  dryRunProfile(profileId: number): Observable<DryRunReport> {
+    return this.http.post<DryRunReport>(`${this.baseUrl}/sync-profiles/${profileId}/dry-run`, {});
   }
 
   // Media

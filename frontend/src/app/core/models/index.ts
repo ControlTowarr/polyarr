@@ -128,3 +128,48 @@ export interface ScanResult {
   alreadyExists: number;
   errors: number;
 }
+
+export interface DryRunItem {
+  id: string;
+  title: string;
+  mediaType: 'movie' | 'episode';
+  year?: number;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  externalId: string;
+  sourcePath?: string;
+  destinationPath?: string;
+  languagesDetected?: string[];
+  targetLanguage: string;
+  searchEnabled?: boolean;
+  action:
+    | 'would_link'
+    | 'needs_download'
+    | 'already_linked'
+    | 'already_exists_child'
+    | 'error';
+  reason: string;
+}
+
+export interface DryRunReport {
+  profileId: number;
+  profileName: string;
+  mainInstanceName: string;
+  childInstanceName: string;
+  linkType: 'hardlink' | 'symlink';
+  targetLanguage: string;
+  generatedAt: string;
+  summary: {
+    totalScanned: number;
+    wouldLinkCount: number;
+    needsDownloadCount: number;
+    alreadyLinkedCount: number;
+    alreadyExistsChildCount: number;
+    errorCount: number;
+  };
+  wouldLink: DryRunItem[];
+  needsDownload: DryRunItem[];
+  alreadyLinked: DryRunItem[];
+  alreadyExistsChild: DryRunItem[];
+  errors: DryRunItem[];
+}

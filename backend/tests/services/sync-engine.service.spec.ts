@@ -30,11 +30,15 @@ describe('SyncEngineService', () => {
 
     mediaInspector = {
       hasLanguage: jest.fn(),
+      detectLanguages: jest.fn(),
+      parseFromArrMediaInfo: jest.fn(),
+      inspectFile: jest.fn(),
     } as unknown as jest.Mocked<MediaInspectorService>;
 
     linker = {
       linkMedia: jest.fn(),
       linkExists: jest.fn(),
+      translatePath: jest.fn(),
     } as unknown as jest.Mocked<LinkerService>;
 
     // Default mock methods for syncEngine tracking/logging
@@ -172,6 +176,152 @@ describe('SyncEngineService', () => {
         id: 100,
         seasons: [{ seasonNumber: 1, monitored: true }]
       }));
+    });
+  });
+
+  describe('dryRunProfile', () => {
+    it('generates correct report for Radarr profile without making mutations', async () => {
+      const mockProfile = {
+        id: 1,
+        mainInstanceId: 1,
+        childInstanceId: 2,
+        linkType: 'hardlink',
+        mainPath: '/movies-main',
+        childPath: '/movies-child',
+        searchIfMissing: true,
+        mainInstance: { id: 1, name: 'Radarr Main', type: 'radarr', url: 'http://main-radarr', apiKey: 'k1', language: 'en' },
+        childInstance: { id: 2, name: 'Radarr French', type: 'radarr', url: 'http://child-radarr', apiKey: 'k2', language: 'fr' }
+      };
+
+      mockRepository.findOne.mockResolvedValue(mockProfile);
+
+      // Main has 4 movies:
+      // 1. Movie A (tmdb: 101) has 'fr' audio, not on child -> should be wouldLink
+      // 2. Movie B (tmdb: 102) has 'en' audio only, not on child -> should be needsDownload
+      // 3. Movie C (tmdb: 103) has 'fr' audio, on child with file, link exists -> alreadyLinked
+      // 4. Movie D (tmdb: 104) has 'en' audio, on child with file -> alreadyExistsChild
+      (RadarrService.prototype.getMovies as jest.Mock)
+        .mockResolvedValueOnce([
+          { id: 1, tmdbId: 101, title: 'Movie A', year: 2021, hasFile: true, movieFile: { path: '/movies-main/Movie A/file.mkv' } },
+          { id: 2, tmdbId: 102, title: 'Movie B', year: 2022, hasFile: true, movieFile: { path: '/movies-main/Movie B/file.mkv' } },
+          { id: 3, tmdbId: 103, title: 'Movie C', year: 2023, hasFile: true, movieFile: { path: '/movies-main/Movie C/file.mkv' } },
+          { id: 4, tmdbId: 104, title: 'Movie D', year: 2024, hasFile: true, movieFile: { path: '/movies-main/Movie D/file.mkv' } },
+        ])
+        .mockResolvedValueOnce([
+          { id: 30, tmdbId: 103, title: 'Movie C', year: 2023, hasFile: true },
+          { id: 40, tmdbId: 104, title: 'Movie D', year: 2024, hasFile: true, path: '/movies-child/Movie D' },
+        ]);
+
+      mediaInspector.detectLanguages.mockImplementation(async (path: string) => {
+        if (path.includes('Movie B') || path.includes('Movie D')) return ['en'];
+        return ['en', 'fr'];
+      });
+
+      linker.translatePath.mockImplementation((src: string, main: string, child: string) => {
+        return src.replace(main, child);
+      });
+
+      linker.linkExists.mockImplementation(async (src: string) => {
+        return src.includes('Movie C');
+      });
+
+      const report = await syncEngine.dryRunProfile(1);
+
+      expect(report.profileId).toBe(1);
+      expect(report.targetLanguage).toBe('fr');
+      expect(report.summary.totalScanned).toBe(4);
+      expect(report.wouldLink.length).toBe(1);
+      expect(report.wouldLink[0].title).toBe('Movie A');
+      expect(report.needsDownload.length).toBe(1);
+      expect(report.needsDownload[0].title).toBe('Movie B');
+      expect(report.alreadyLinked.length).toBe(1);
+      expect(report.alreadyLinked[0].title).toBe('Movie C');
+      expect(report.alreadyExistsChild.length).toBe(1);
+      expect(report.alreadyExistsChild[0].title).toBe('Movie D');
+      expect(report.errors.length).toBe(0);
+
+      // Verify no mutations were performed
+      expect(RadarrService.prototype.addMovie).not.toHaveBeenCalled();
+      expect(RadarrService.prototype.searchMovie).not.toHaveBeenCalled();
+      expect(linker.linkMedia).not.toHaveBeenCalled();
+    });
+
+    it('generates correct report for Sonarr profile without making mutations', async () => {
+      const mockProfile = {
+        id: 2,
+        mainInstanceId: 3,
+        childInstanceId: 4,
+        linkType: 'hardlink',
+        mainPath: '/tv-main',
+        childPath: '/tv-child',
+        searchIfMissing: true,
+        mainInstance: { id: 3, name: 'Sonarr Main', type: 'sonarr', url: 'http://main-sonarr', apiKey: 'k3', language: 'en' },
+        childInstance: { id: 4, name: 'Sonarr French', type: 'sonarr', url: 'http://child-sonarr', apiKey: 'k4', language: 'fr' }
+      };
+
+      mockRepository.findOne.mockResolvedValue(mockProfile);
+
+      (SonarrService.prototype.getSeries as jest.Mock)
+        .mockResolvedValueOnce([
+          { id: 10, tvdbId: 2001, title: 'Series Main Only', year: 2020 },
+          { id: 20, tvdbId: 2002, title: 'Series Both', year: 2021 }
+        ])
+        .mockResolvedValueOnce([
+          { id: 50, tvdbId: 2002, title: 'Series Both', year: 2021 }
+        ]);
+
+      (SonarrService.prototype.getEpisodes as jest.Mock).mockImplementation(async (seriesId: number) => {
+        if (seriesId === 10) {
+          return [{ id: 1, seriesId: 10, seasonNumber: 1, episodeNumber: 1, hasFile: true, episodeFileId: 101 }];
+        }
+        if (seriesId === 20) {
+          return [
+            { id: 2, seriesId: 20, seasonNumber: 1, episodeNumber: 1, hasFile: true, episodeFileId: 102 },
+            { id: 3, seriesId: 20, seasonNumber: 1, episodeNumber: 2, hasFile: true, episodeFileId: 103 },
+          ];
+        }
+        if (seriesId === 50) {
+          return [
+            { id: 51, seriesId: 50, seasonNumber: 1, episodeNumber: 1, hasFile: true },
+            { id: 52, seriesId: 50, seasonNumber: 1, episodeNumber: 2, hasFile: false },
+          ];
+        }
+        return [];
+      });
+
+      (SonarrService.prototype.getEpisodeFiles as jest.Mock).mockImplementation(async (seriesId: number) => {
+        if (seriesId === 10) {
+          return [{ id: 101, path: '/tv-main/Series Main Only/S01E01.mkv' }];
+        }
+        if (seriesId === 20) {
+          return [
+            { id: 102, path: '/tv-main/Series Both/S01E01.mkv' },
+            { id: 103, path: '/tv-main/Series Both/S01E02.mkv' },
+          ];
+        }
+        return [];
+      });
+
+      mediaInspector.detectLanguages.mockImplementation(async (path: string) => {
+        if (path.includes('S01E02')) return ['en'];
+        return ['en', 'fr'];
+      });
+      linker.translatePath.mockImplementation((src: string, main: string, child: string) => src.replace(main, child));
+      linker.linkExists.mockImplementation(async (src: string) => src.includes('Series Both/S01E01.mkv'));
+
+      const report = await syncEngine.dryRunProfile(2);
+
+      expect(report.profileId).toBe(2);
+      expect(report.summary.totalScanned).toBe(3);
+      expect(report.wouldLink.length).toBe(1); // S01E01 on Series Main Only (has FR, not linked)
+      expect(report.alreadyLinked.length).toBe(1); // S01E01 on Series Both (has FR, linkExists)
+      expect(report.needsDownload.length).toBe(1); // S01E02 on Series Both (lacks FR, child lacks file)
+      expect(report.errors.length).toBe(0);
+
+      // Verify no mutating calls
+      expect(SonarrService.prototype.addSeries).not.toHaveBeenCalled();
+      expect(SonarrService.prototype.searchEpisodes).not.toHaveBeenCalled();
+      expect(linker.linkMedia).not.toHaveBeenCalled();
     });
   });
 });

@@ -4,7 +4,53 @@ import { LinkerService } from './linker.service';
 import { Instance, SyncProfile, MediaItem, MediaItemInstance, SyncHistory } from '../entities';
 import { RadarrService, RadarrMovie, RadarrMovieFile, RadarrWebhookPayload } from './radarr.service';
 import { SonarrService, SonarrSeries, SonarrEpisode, SonarrEpisodeFile, SonarrWebhookPayload } from './sonarr.service';
+import { normalizeLanguageCode } from '../utils/languages';
 import { logger } from '../utils/logger';
+
+export interface DryRunItem {
+  id: string;
+  title: string;
+  mediaType: 'movie' | 'episode';
+  year?: number;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  externalId: string;
+  sourcePath?: string;
+  destinationPath?: string;
+  languagesDetected?: string[];
+  targetLanguage: string;
+  searchEnabled?: boolean;
+  action:
+    | 'would_link'
+    | 'needs_download'
+    | 'already_linked'
+    | 'already_exists_child'
+    | 'error';
+  reason: string;
+}
+
+export interface DryRunReport {
+  profileId: number;
+  profileName: string;
+  mainInstanceName: string;
+  childInstanceName: string;
+  linkType: 'hardlink' | 'symlink';
+  targetLanguage: string;
+  generatedAt: string;
+  summary: {
+    totalScanned: number;
+    wouldLinkCount: number;
+    needsDownloadCount: number;
+    alreadyLinkedCount: number;
+    alreadyExistsChildCount: number;
+    errorCount: number;
+  };
+  wouldLink: DryRunItem[];
+  needsDownload: DryRunItem[];
+  alreadyLinked: DryRunItem[];
+  alreadyExistsChild: DryRunItem[];
+  errors: DryRunItem[];
+}
 
 export class SyncEngineService {
   constructor(
@@ -305,5 +351,283 @@ export class SyncEngineService {
     const repo = this.db.getRepository(SyncHistory);
     const hist = repo.create({ syncProfileId, mediaTitle, mediaType, externalId, action, details });
     return repo.save(hist);
+  }
+
+  async dryRunProfile(profileId: number): Promise<DryRunReport> {
+    const profile = await this.db.getRepository(SyncProfile).findOne({
+      where: { id: profileId },
+      relations: ['mainInstance', 'childInstance']
+    });
+
+    if (!profile || !profile.mainInstance || !profile.childInstance) {
+      throw new Error('Sync profile not found');
+    }
+
+    const main = profile.mainInstance;
+    const child = profile.childInstance;
+    const targetLang = normalizeLanguageCode(child.language || 'en');
+
+    const report: DryRunReport = {
+      profileId: profile.id,
+      profileName: `${main.name} ➔ ${child.name}`,
+      mainInstanceName: main.name,
+      childInstanceName: child.name,
+      linkType: profile.linkType || 'hardlink',
+      targetLanguage: targetLang,
+      generatedAt: new Date().toISOString(),
+      summary: {
+        totalScanned: 0,
+        wouldLinkCount: 0,
+        needsDownloadCount: 0,
+        alreadyLinkedCount: 0,
+        alreadyExistsChildCount: 0,
+        errorCount: 0,
+      },
+      wouldLink: [],
+      needsDownload: [],
+      alreadyLinked: [],
+      alreadyExistsChild: [],
+      errors: [],
+    };
+
+    if (main.type === 'radarr') {
+      await this.dryRunRadarr(profile, main, child, targetLang, report);
+    } else if (main.type === 'sonarr') {
+      await this.dryRunSonarr(profile, main, child, targetLang, report);
+    }
+
+    report.summary.wouldLinkCount = report.wouldLink.length;
+    report.summary.needsDownloadCount = report.needsDownload.length;
+    report.summary.alreadyLinkedCount = report.alreadyLinked.length;
+    report.summary.alreadyExistsChildCount = report.alreadyExistsChild.length;
+    report.summary.errorCount = report.errors.length;
+
+    return report;
+  }
+
+  private async dryRunRadarr(
+    profile: SyncProfile,
+    main: Instance,
+    child: Instance,
+    targetLang: string,
+    report: DryRunReport
+  ): Promise<void> {
+    const mainRadarr = new RadarrService(main.url, main.apiKey);
+    const childRadarr = new RadarrService(child.url, child.apiKey);
+
+    const [mainMovies, childMovies] = await Promise.all([
+      mainRadarr.getMovies(),
+      childRadarr.getMovies().catch(() => [] as RadarrMovie[])
+    ]);
+
+    const childMovieMap = new Map<number, RadarrMovie>();
+    for (const cm of childMovies) {
+      if (cm.tmdbId) {
+        childMovieMap.set(cm.tmdbId, cm);
+      }
+    }
+
+    for (const movie of mainMovies) {
+      if (!movie.hasFile || !movie.movieFile) continue;
+      report.summary.totalScanned++;
+
+      const externalId = movie.tmdbId?.toString() || movie.id.toString();
+      const sourcePath = movie.movieFile.path || '';
+      const destPath = this.linker.translatePath(sourcePath, profile.mainPath, profile.childPath);
+
+      try {
+        const detectedLangs = await this.mediaInspector.detectLanguages(sourcePath, movie.movieFile.mediaInfo);
+        const hasTargetLang = detectedLangs.includes(targetLang);
+        const linkExists = await this.linker.linkExists(sourcePath, profile.mainPath, profile.childPath);
+        const targetMovie = movie.tmdbId ? childMovieMap.get(movie.tmdbId) : undefined;
+
+        const baseItem: Omit<DryRunItem, 'action' | 'reason'> = {
+          id: `movie-${movie.id}-${externalId}`,
+          title: movie.title,
+          mediaType: 'movie',
+          year: movie.year,
+          externalId,
+          sourcePath,
+          destinationPath: destPath,
+          languagesDetected: detectedLangs,
+          targetLanguage: targetLang,
+        };
+
+        if (hasTargetLang) {
+          // Main file HAS the target language audio
+          if (linkExists) {
+            report.alreadyLinked.push({
+              ...baseItem,
+              action: 'already_linked',
+              reason: `Hardlink is already verified and intact at destination (${destPath}).`,
+            });
+          } else {
+            report.wouldLink.push({
+              ...baseItem,
+              action: 'would_link',
+              reason: !targetMovie
+                ? `Contains ${targetLang.toUpperCase()} audio. Will add movie to ${child.name} and hardlink file.`
+                : `Contains ${targetLang.toUpperCase()} audio. Will hardlink file to ${child.name}.`,
+            });
+          }
+        } else {
+          // Main file LACKS the target language audio -> needs separate download on secondary
+          if (targetMovie && targetMovie.hasFile) {
+            report.alreadyExistsChild.push({
+              ...baseItem,
+              action: 'already_exists_child',
+              reason: `Secondary instance (${child.name}) already has its own file downloaded.`,
+            });
+          } else {
+            report.needsDownload.push({
+              ...baseItem,
+              action: 'needs_download',
+              searchEnabled: profile.searchIfMissing,
+              reason: profile.searchIfMissing
+                ? `Lacks ${targetLang.toUpperCase()} audio on main. Will add to ${child.name} and trigger search on indexers.`
+                : `Lacks ${targetLang.toUpperCase()} audio on main. Will add to ${child.name} as monitored (auto-search off).`,
+            });
+          }
+        }
+      } catch (err: any) {
+        report.errors.push({
+          id: `movie-${movie.id}-${externalId}`,
+          title: movie.title,
+          mediaType: 'movie',
+          year: movie.year,
+          externalId,
+          sourcePath,
+          destinationPath: destPath,
+          targetLanguage: targetLang,
+          action: 'error',
+          reason: `Error inspecting movie: ${err.message}`,
+        });
+      }
+    }
+  }
+
+  private async dryRunSonarr(
+    profile: SyncProfile,
+    main: Instance,
+    child: Instance,
+    targetLang: string,
+    report: DryRunReport
+  ): Promise<void> {
+    const mainSonarr = new SonarrService(main.url, main.apiKey);
+    const childSonarr = new SonarrService(child.url, child.apiKey);
+
+    const [mainSeriesList, childSeriesList] = await Promise.all([
+      mainSonarr.getSeries(),
+      childSonarr.getSeries().catch(() => [] as SonarrSeries[])
+    ]);
+
+    const childSeriesMap = new Map<number, SonarrSeries>();
+    for (const cs of childSeriesList) {
+      if (cs.tvdbId) {
+        childSeriesMap.set(cs.tvdbId, cs);
+      }
+    }
+
+    for (const series of mainSeriesList) {
+      const tvdbId = series.tvdbId;
+      const externalId = tvdbId?.toString() || series.id.toString();
+      const childSeries = tvdbId ? childSeriesMap.get(tvdbId) : undefined;
+
+      try {
+        const [episodes, files, childEpisodes] = await Promise.all([
+          mainSonarr.getEpisodes(series.id),
+          mainSonarr.getEpisodeFiles(series.id),
+          childSeries ? childSonarr.getEpisodes(childSeries.id).catch(() => [] as SonarrEpisode[]) : Promise.resolve([] as SonarrEpisode[])
+        ]);
+
+        const fileMap = new Map<number, SonarrEpisodeFile>();
+        for (const f of files) {
+          fileMap.set(f.id, f);
+        }
+
+        const childEpMap = new Map<string, SonarrEpisode>();
+        for (const ce of childEpisodes) {
+          childEpMap.set(`${ce.seasonNumber}_${ce.episodeNumber}`, ce);
+        }
+
+        for (const ep of episodes) {
+          if (!ep.hasFile || !ep.episodeFileId) continue;
+          const file = fileMap.get(ep.episodeFileId);
+          if (!file) continue;
+
+          report.summary.totalScanned++;
+
+          const sourcePath = file.path || '';
+          const destPath = this.linker.translatePath(sourcePath, profile.mainPath, profile.childPath);
+          const detectedLangs = await this.mediaInspector.detectLanguages(sourcePath, file.mediaInfo);
+          const hasTargetLang = detectedLangs.includes(targetLang);
+          const linkExists = await this.linker.linkExists(sourcePath, profile.mainPath, profile.childPath);
+          const childEp = childEpMap.get(`${ep.seasonNumber}_${ep.episodeNumber}`);
+
+          const epTitle = `${series.title} S${String(ep.seasonNumber).padStart(2, '0')}E${String(ep.episodeNumber).padStart(2, '0')}`;
+          const baseItem: Omit<DryRunItem, 'action' | 'reason'> = {
+            id: `ep-${series.id}-${ep.id}`,
+            title: epTitle,
+            mediaType: 'episode',
+            seasonNumber: ep.seasonNumber,
+            episodeNumber: ep.episodeNumber,
+            year: series.year,
+            externalId,
+            sourcePath,
+            destinationPath: destPath,
+            languagesDetected: detectedLangs,
+            targetLanguage: targetLang,
+          };
+
+          if (hasTargetLang) {
+            // Main episode HAS target language audio
+            if (linkExists) {
+              report.alreadyLinked.push({
+                ...baseItem,
+                action: 'already_linked',
+                reason: `Episode hardlink is already verified and intact at destination (${destPath}).`,
+              });
+            } else {
+              report.wouldLink.push({
+                ...baseItem,
+                action: 'would_link',
+                reason: !childSeries
+                  ? `Contains ${targetLang.toUpperCase()} audio. Will add series to ${child.name} and hardlink episode.`
+                  : `Contains ${targetLang.toUpperCase()} audio. Will hardlink episode to ${child.name}.`,
+              });
+            }
+          } else {
+            // Main episode LACKS target language audio
+            if (childEp && childEp.hasFile) {
+              report.alreadyExistsChild.push({
+                ...baseItem,
+                action: 'already_exists_child',
+                reason: `Secondary instance (${child.name}) already has its own file for S${ep.seasonNumber}E${ep.episodeNumber}.`,
+              });
+            } else {
+              report.needsDownload.push({
+                ...baseItem,
+                action: 'needs_download',
+                searchEnabled: profile.searchIfMissing,
+                reason: profile.searchIfMissing
+                  ? `Lacks ${targetLang.toUpperCase()} audio on main. Will trigger search on ${child.name}.`
+                  : `Lacks ${targetLang.toUpperCase()} audio on main. Monitored on ${child.name} (auto-search off).`,
+              });
+            }
+          }
+        }
+      } catch (err: any) {
+        report.errors.push({
+          id: `series-${series.id}-${externalId}`,
+          title: series.title,
+          mediaType: 'episode',
+          year: series.year,
+          externalId,
+          targetLanguage: targetLang,
+          action: 'error',
+          reason: `Error inspecting series ${series.title}: ${err.message}`,
+        });
+      }
+    }
   }
 }

@@ -81,5 +81,18 @@ export function createSyncProfilesRouter(
     }
   });
 
+  // Dry run operation (simulates sync without linking, adding, or searching)
+  router.post('/:id/dry-run', async (req, res) => {
+    try {
+      if (!syncEngine) {
+        return res.status(500).json({ error: 'Sync engine not available' });
+      }
+      const result = await syncEngine.dryRunProfile(parseInt(req.params.id));
+      res.json(result);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   return router;
 }

@@ -80,20 +80,37 @@ When creating or editing a Sync Profile in the **Settings** or **Sync Profiles**
 
 ---
 
-## 🚀 Quick Start (Docker Compose)
+## 🚀 Installation & Deployment
+
+### Option A: Docker (GitHub Container Registry)
+
+Polyarr is published automatically to GitHub Container Registry:
+
+```bash
+docker run -d \
+  --name polyarr \
+  -p 3000:3000 \
+  -v /mnt/user/appdata/polyarr:/app/data \
+  -v /mnt/user/data:/data \
+  -e PORT=3000 \
+  -e DATA_DIR=/app/data \
+  --restart unless-stopped \
+  ghcr.io/controltowarr/polyarr:latest
+```
+
+### Option B: Docker Compose
 
 ```yaml
 # docker-compose.yml
 services:
   polyarr:
-    build: .
-    # Or image: polyarr:latest
+    image: ghcr.io/controltowarr/polyarr:latest
     container_name: polyarr
     ports:
       - "3000:3000"
     volumes:
       - ./data:/app/data
-      - /path/to/media:/media  # Mount your media library (must match Radarr/Sonarr mount paths)
+      - /mnt/user/data:/data  # Mount your media share (crucial for hardlinks)
     environment:
       - PORT=3000
       - LOG_LEVEL=info
@@ -101,13 +118,22 @@ services:
     restart: unless-stopped
 ```
 
-1. Clone the repository or copy the `docker-compose.yml` above.
-2. Adjust the volume mounts to match your media libraries.
-3. Start the container:
-   ```bash
-   docker-compose up -d
-   ```
-4. Access the web interface at **`http://localhost:3000`**.
+### Option C: Unraid Setup
+
+1. In Unraid, go to the **Docker** tab and click **"Add Container"** at the bottom.
+2. Fill out the container settings:
+   - **Name**: `polyarr`
+   - **Repository**: `ghcr.io/controltowarr/polyarr:latest`
+   - **WebUI**: `http://[IP]:[PORT:3000]/`
+3. Add the following **Port** and **Path** mappings:
+   - **Port**: Host `3000` ➔ Container `3000` (TCP)
+   - **Path (Appdata)**: Host `/mnt/user/appdata/polyarr` ➔ Container `/app/data`
+   - **Path (Media Mount)**: Host `/mnt/user/data` ➔ Container `/data` (or your shared media pool path)
+4. Click **Apply**.
+
+> [!IMPORTANT]
+> **Hardlinking on Unraid**:
+> For zero-space hardlinks to work, your source and destination libraries must share the same physical pool/share and be accessible within Polyarr under the same volume mount (e.g. `/data` or `/mnt/user/data`).
 
 ---
 

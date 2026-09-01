@@ -81,6 +81,8 @@ async function bootstrap() {
     // Serve static files for Angular SPA
     const fs = require('fs');
     const possiblePaths = [
+      path.join(__dirname, '../public'),
+      path.join(process.cwd(), 'public'),
       path.join(__dirname, '../../frontend/dist/frontend/browser'),
       path.join(__dirname, '../frontend/dist/frontend/browser'),
       path.join(process.cwd(), 'frontend/dist/frontend/browser'),

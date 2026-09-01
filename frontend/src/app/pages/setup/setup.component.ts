@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { Instance, SyncProfile } from '../../core/models';
 import { InstanceFormComponent } from '../../components/instance-form/instance-form.component';
+import { PathBrowserComponent } from '../../components/path-browser/path-browser.component';
 
 interface SetupStep {
   id: string;
@@ -16,7 +17,7 @@ interface SetupStep {
 @Component({
   selector: 'app-setup',
   standalone: true,
-  imports: [CommonModule, FormsModule, InstanceFormComponent],
+  imports: [CommonModule, FormsModule, InstanceFormComponent, PathBrowserComponent],
   template: `
     <div class="setup-container">
       <!-- Header -->
@@ -232,6 +233,34 @@ interface SetupStep {
               </label>
             </div>
           </div>
+
+          <!-- Optional Advanced Path Overrides -->
+          <div style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+            <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" (click)="showPathOverrides = !showPathOverrides">
+              <span style="font-size:0.88rem;font-weight:600;color:var(--text-secondary);">
+                ⚙️ Path Overrides (Optional)
+              </span>
+              <span style="font-size:0.8rem;color:var(--accent-primary);">{{ showPathOverrides ? '▲ Hide' : '▼ Expand' }}</span>
+            </div>
+            
+            <div *ngIf="showPathOverrides" style="margin-top:var(--space-md);display:flex;flex-direction:column;gap:var(--space-md);">
+              <app-path-browser
+                label="Source Media Path Override (Main)"
+                [currentPath]="newProfile.mainPath || ''"
+                (currentPathChange)="newProfile.mainPath = $event"
+                placeholder="Leave blank to use instance default"
+                hint="Only customize if this sync profile requires a custom source root folder."
+              ></app-path-browser>
+
+              <app-path-browser
+                label="Target Media Path Override (Child)"
+                [currentPath]="newProfile.childPath || ''"
+                (currentPathChange)="newProfile.childPath = $event"
+                placeholder="Leave blank to use instance default"
+                hint="Only customize if this sync profile requires a custom target root folder."
+              ></app-path-browser>
+            </div>
+          </div>
         </div>
 
         <div style="display:flex;justify-content:space-between;margin-top:var(--space-xl);">
@@ -253,6 +282,7 @@ export class SetupComponent implements OnInit {
 
   currentStep = 0;
   instances: Instance[] = [];
+  showPathOverrides = false;
 
   newProfile: Partial<SyncProfile> = {
     enabled: true,

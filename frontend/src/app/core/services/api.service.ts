@@ -139,9 +139,19 @@ export class ApiService {
     return this.http.get<PaginatedResult<SyncHistoryEntry>>(`${this.baseUrl}/history/logs`, { params: this.buildHttpParams(params) });
   }
 
-  // Filesystem Browser
+  // Filesystem Browser & Autocomplete
   browseFilesystem(browsePath: string): Observable<{ currentPath: string; parent: string | null; directories: { name: string; path: string }[] }> {
     return this.http.get<any>(`${this.baseUrl}/filesystem/browse`, { params: { path: browsePath } });
+  }
+
+  autocompletePath(query: string): Observable<{
+    query: string;
+    parentDir: string;
+    currentPrefix: string;
+    exists: boolean;
+    suggestions: { name: string; path: string }[];
+  }> {
+    return this.http.get<any>(`${this.baseUrl}/filesystem/autocomplete`, { params: { query } });
   }
 
   // Settings

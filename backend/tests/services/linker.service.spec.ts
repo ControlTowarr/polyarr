@@ -50,28 +50,33 @@ describe('LinkerService', () => {
 
   describe('linkMedia', () => {
     it('creates a hardlink when requested', async () => {
+      (fs.access as jest.Mock).mockResolvedValue(undefined);
       (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
       (fs.link as jest.Mock).mockResolvedValue(undefined);
 
       const result = await linkerService.linkMedia('/data/main/file.mkv', '/data/main', '/data/child', 'hardlink');
       
+      expect(fs.access).toHaveBeenCalledWith('/data/main/file.mkv');
       expect(fs.mkdir).toHaveBeenCalledWith(path.dirname('/data/child/file.mkv'), { recursive: true });
       expect(fs.link).toHaveBeenCalledWith('/data/main/file.mkv', '/data/child/file.mkv');
       expect(result).toBe('/data/child/file.mkv');
     });
 
     it('creates a symlink when requested', async () => {
+      (fs.access as jest.Mock).mockResolvedValue(undefined);
       (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
       (fs.symlink as jest.Mock).mockResolvedValue(undefined);
 
       const result = await linkerService.linkMedia('/data/main/file.mkv', '/data/main', '/data/child', 'symlink');
       
+      expect(fs.access).toHaveBeenCalledWith('/data/main/file.mkv');
       expect(fs.mkdir).toHaveBeenCalledWith(path.dirname('/data/child/file.mkv'), { recursive: true });
       expect(fs.symlink).toHaveBeenCalledWith('/data/main/file.mkv', '/data/child/file.mkv');
       expect(result).toBe('/data/child/file.mkv');
     });
 
     it('handles EEXIST gracefully', async () => {
+      (fs.access as jest.Mock).mockResolvedValue(undefined);
       (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
       const error = new Error('File exists');
       (error as any).code = 'EEXIST';
@@ -82,12 +87,20 @@ describe('LinkerService', () => {
     });
 
     it('throws on non-EEXIST error', async () => {
+      (fs.access as jest.Mock).mockResolvedValue(undefined);
       (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
       const error = new Error('Permission denied');
       (error as any).code = 'EACCES';
       (fs.link as jest.Mock).mockRejectedValue(error);
 
       await (expect(linkerService.linkMedia('/data/main/file.mkv', '/data/main', '/data/child', 'hardlink')) as any).rejects.toThrow('Permission denied');
+    });
+
+    it('throws if source file does not exist without creating destination directory', async () => {
+      (fs.access as jest.Mock).mockRejectedValue(new Error('ENOENT'));
+
+      await expect(linkerService.linkMedia('/data/main/file.mkv', '/data/main', '/data/child', 'hardlink')).rejects.toThrow('ENOENT');
+      expect(fs.mkdir).not.toHaveBeenCalled();
     });
   });
 

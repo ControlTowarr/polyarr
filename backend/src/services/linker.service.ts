@@ -24,6 +24,8 @@ export class LinkerService {
     linkType: 'hardlink' | 'symlink'
   ): Promise<string> {
     const destPath = this.translatePath(sourcePath, mainPath, childPath);
+    // Verify source file exists before creating destination directory
+    await fs.access(sourcePath);
     await fs.mkdir(path.dirname(destPath), { recursive: true });
 
     try {

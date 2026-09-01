@@ -60,34 +60,20 @@ export function createFilesystemRouter(): Router {
         });
       }
 
-      // Check if the path exists; if not, walk up to the nearest existing parent directory
-      let targetPath = resolvedPath;
+      // Check if the path exists and is a directory
       let stat;
       try {
-        stat = await fs.stat(targetPath);
+        stat = await fs.stat(resolvedPath);
       } catch {
-        let cur = targetPath;
-        while (cur && cur !== path.dirname(cur)) {
-          cur = path.dirname(cur);
-          try {
-            const s = await fs.stat(cur);
-            if (s.isDirectory() && isPathAllowed(cur, allowedRoots)) {
-              targetPath = cur;
-              stat = s;
-              break;
-            }
-          } catch {
-            // continue walking up
-          }
-        }
+        return res.status(404).json({ error: `Path not found: ${resolvedPath}` });
       }
 
-      if (!stat || !stat.isDirectory()) {
-        return res.status(404).json({ error: `Directory not found: ${resolvedPath}` });
+      if (!stat.isDirectory()) {
+        return res.status(400).json({ error: `Not a directory: ${resolvedPath}` });
       }
 
       // Read directory entries, filtering to directories only
-      const entries = await fs.readdir(targetPath, { withFileTypes: true });
+      const entries = await fs.readdir(resolvedPath, { withFileTypes: true });
       const directories: DirectoryEntry[] = [];
 
       for (const entry of entries) {
@@ -96,7 +82,7 @@ export function createFilesystemRouter(): Router {
         if (entry.isDirectory()) {
           directories.push({
             name: entry.name,
-            path: path.join(targetPath, entry.name),
+            path: path.join(resolvedPath, entry.name),
           });
         }
       }
@@ -105,13 +91,13 @@ export function createFilesystemRouter(): Router {
       directories.sort((a, b) => a.name.localeCompare(b.name));
 
       // Compute parent (null if at filesystem root)
-      const parentPath = targetPath === '/' ? null : path.dirname(targetPath);
+      const parentPath = resolvedPath === '/' ? null : path.dirname(resolvedPath);
 
       // If parent is outside allowlist, don't expose it
       const parent = parentPath && isPathAllowed(parentPath, allowedRoots) ? parentPath : null;
 
       const result: BrowseResult = {
-        currentPath: targetPath,
+        currentPath: resolvedPath,
         parent,
         directories,
       };
@@ -126,5 +112,109 @@ export function createFilesystemRouter(): Router {
     }
   });
 
+  /**
+   * GET /api/filesystem/autocomplete?query=/some/path
+   *
+   * Unraid-style path autocomplete.
+   * Parses the query into parent directory and current prefix,
+   * checks if the exact path exists, and returns matching subdirectories.
+   */
+  router.get('/autocomplete', async (req, res) => {
+    try {
+      let rawQuery = (req.query.query as string || '').trim();
+      if (!rawQuery) {
+        rawQuery = '/';
+      }
+
+      // Ensure leading slash
+      if (!rawQuery.startsWith('/')) {
+        rawQuery = '/' + rawQuery;
+      }
+
+      const allowedRoots = getAllowedRoots();
+
+      let parentDir: string;
+      let currentPrefix: string;
+
+      if (rawQuery.endsWith('/') || rawQuery === '/') {
+        parentDir = path.resolve(rawQuery);
+        currentPrefix = '';
+      } else {
+        parentDir = path.dirname(rawQuery);
+        currentPrefix = path.basename(rawQuery);
+      }
+
+      // Check security allowlist on parentDir
+      if (!isPathAllowed(parentDir, allowedRoots)) {
+        return res.json({
+          query: rawQuery,
+          parentDir,
+          currentPrefix,
+          exists: false,
+          suggestions: [],
+          error: 'Access denied: outside allowed roots',
+        });
+      }
+
+      // Check if the exact typed path exists as a directory
+      const resolvedExact = path.resolve(rawQuery);
+      let exists = false;
+      try {
+        const exactStat = await fs.stat(resolvedExact);
+        exists = exactStat.isDirectory();
+      } catch {
+        exists = false;
+      }
+
+      // Check if parent directory exists to read subdirectories
+      let parentStat;
+      try {
+        parentStat = await fs.stat(parentDir);
+      } catch {
+        parentStat = null;
+      }
+
+      const suggestions: DirectoryEntry[] = [];
+
+      if (parentStat && parentStat.isDirectory()) {
+        try {
+          const entries = await fs.readdir(parentDir, { withFileTypes: true });
+          const prefixLower = currentPrefix.toLowerCase();
+
+          for (const entry of entries) {
+            // Ignore hidden entries unless query starts with .
+            if (entry.name.startsWith('.') && !currentPrefix.startsWith('.')) continue;
+
+            if (entry.isDirectory()) {
+              if (!currentPrefix || entry.name.toLowerCase().startsWith(prefixLower)) {
+                suggestions.push({
+                  name: entry.name,
+                  path: path.join(parentDir, entry.name),
+                });
+              }
+            }
+          }
+
+          // Sort alphabetically
+          suggestions.sort((a, b) => a.name.localeCompare(b.name));
+        } catch (readErr: any) {
+          logger.warn(`[Filesystem] Autocomplete read error in ${parentDir}:`, readErr.message);
+        }
+      }
+
+      return res.json({
+        query: rawQuery,
+        parentDir,
+        currentPrefix,
+        exists,
+        suggestions,
+      });
+    } catch (err: any) {
+      logger.error('[Filesystem] Autocomplete error:', err);
+      res.status(500).json({ error: err.message || 'Internal server error' });
+    }
+  });
+
   return router;
 }
+

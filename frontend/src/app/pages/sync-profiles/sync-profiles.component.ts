@@ -5,11 +5,12 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { SyncProfile, Instance, DryRunReport, DryRunItem } from '../../core/models';
+import { PathBrowserComponent } from '../../components/path-browser/path-browser.component';
 
 @Component({
   selector: 'app-sync-profiles',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, PathBrowserComponent],
   template: `
     <div class="page-header">
       <div>
@@ -91,6 +92,34 @@ import { SyncProfile, Instance, DryRunReport, DryRunItem } from '../../core/mode
             <input type="checkbox" [(ngModel)]="currentProfile.syncMonitoredSeasons">
             <span class="switch-slider"></span>
           </label>
+        </div>
+      </div>
+
+      <!-- Optional Advanced Path Overrides -->
+      <div style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" (click)="showPathOverrides = !showPathOverrides">
+          <span style="font-size:0.88rem;font-weight:600;color:var(--text-secondary);">
+            ⚙️ Path Overrides (Optional)
+          </span>
+          <span style="font-size:0.8rem;color:var(--accent-primary);">{{ showPathOverrides ? '▲ Hide' : '▼ Expand' }}</span>
+        </div>
+        
+        <div *ngIf="showPathOverrides" style="margin-top:var(--space-md);display:flex;flex-direction:column;gap:var(--space-md);">
+          <app-path-browser
+            label="Source Media Path Override (Main)"
+            [currentPath]="currentProfile.mainPath || ''"
+            (currentPathChange)="currentProfile.mainPath = $event"
+            placeholder="Leave blank to use instance default"
+            hint="Only customize if this sync profile requires a custom source root folder."
+          ></app-path-browser>
+
+          <app-path-browser
+            label="Target Media Path Override (Child)"
+            [currentPath]="currentProfile.childPath || ''"
+            (currentPathChange)="currentProfile.childPath = $event"
+            placeholder="Leave blank to use instance default"
+            hint="Only customize if this sync profile requires a custom target root folder."
+          ></app-path-browser>
         </div>
       </div>
 
@@ -526,6 +555,7 @@ export class SyncProfilesComponent implements OnInit {
   profiles: SyncProfile[] = [];
   instances: Instance[] = [];
   showForm = false;
+  showPathOverrides = false;
   editingProfileId: number | null = null;
 
   // Dry Run & Sync state
@@ -605,6 +635,7 @@ export class SyncProfilesComponent implements OnInit {
 
   openAddProfile() {
     this.editingProfileId = null;
+    this.showPathOverrides = false;
     this.currentProfile = {
       mainInstanceId: this.mainInstances[0]?.id,
       childInstanceId: this.childInstances[0]?.id,
@@ -623,6 +654,7 @@ export class SyncProfilesComponent implements OnInit {
   editProfile(profile: SyncProfile) {
     this.editingProfileId = profile.id;
     this.currentProfile = { ...profile };
+    this.showPathOverrides = !!(profile.mainPath?.trim() || profile.childPath?.trim());
     this.showForm = true;
     this.cdr.detectChanges();
   }

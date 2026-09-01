@@ -29,7 +29,6 @@
     "typescript": "~6.0.0"
   },
   "overrides": {
-    "less": "$less",
     "image-size": ">=1.1.1"
   }
 }

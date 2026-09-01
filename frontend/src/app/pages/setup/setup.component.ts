@@ -23,7 +23,7 @@ interface SetupStep {
       <!-- Header -->
       <div style="text-align:center;margin-bottom:var(--space-2xl);">
         <div style="margin-bottom:var(--space-md);display:inline-block;">
-          <img src="logo.png" alt="Polyarr Logo" style="width:72px;height:72px;border-radius:18px;object-fit:cover;box-shadow:0 0 24px rgba(62,203,240,0.35);" />
+          <img src="logo.png" alt="Polyarr Logo" style="width:72px;height:72px;object-fit:contain;display:block;margin:auto;" />
         </div>
         <h1 class="page-title" style="font-size:2.2rem;">Welcome to Polyarr</h1>
         <p class="page-subtitle" style="max-width:520px;margin:auto;">

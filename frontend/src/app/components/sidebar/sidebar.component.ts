@@ -10,7 +10,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
     <aside class="sidebar" [class.open]="isOpen">
       <a class="sidebar-header" routerLink="/dashboard" style="text-decoration:none;cursor:pointer;display:flex;align-items:center;">
         <div class="sidebar-logo-icon" style="margin-right:var(--space-md);flex-shrink:0;">
-          <img src="logo.png" alt="Polyarr Logo" style="width:32px;height:32px;border-radius:8px;object-fit:cover;box-shadow:0 0 12px rgba(62,203,240,0.25);" />
+          <img src="logo.png" alt="Polyarr Logo" style="width:32px;height:32px;object-fit:contain;display:block;" />
         </div>
         <span class="sidebar-logo">Polyarr</span>
       </a>

@@ -22,6 +22,7 @@ import { createWebhooksRouter } from './routes/webhooks.routes';
 import { createMediaRouter } from './routes/media.routes';
 import { createHistoryRouter } from './routes/history.routes';
 import { createSettingsRouter } from './routes/settings.routes';
+import { createFilesystemRouter } from './routes/filesystem.routes';
 
 async function bootstrap() {
   try {
@@ -75,6 +76,7 @@ async function bootstrap() {
     app.use('/api/media', createMediaRouter(db, libraryScanner));
     app.use('/api/history', createHistoryRouter(db));
     app.use('/api/settings', createSettingsRouter(settingsService));
+    app.use('/api/filesystem', createFilesystemRouter());
 
     // Serve static files for Angular SPA
     const fs = require('fs');

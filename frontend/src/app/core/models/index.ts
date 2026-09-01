@@ -6,6 +6,7 @@ export interface Instance {
   apiKey: string;
   language: string;
   rootFolderPath: string;
+  localPath: string;
   qualityProfileId: number;
   isMain: boolean;
   createdAt: string;

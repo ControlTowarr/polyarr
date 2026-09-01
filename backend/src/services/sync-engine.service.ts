@@ -344,8 +344,9 @@ export class SyncEngineService {
   }
 
   private getEffectivePaths(profile: SyncProfile, main: Instance, child: Instance): { mainPath: string; childPath: string } {
-    const mainPath = (profile.mainPath && profile.mainPath.trim() !== '') ? profile.mainPath : (main.rootFolderPath || '');
-    const childPath = (profile.childPath && profile.childPath.trim() !== '') ? profile.childPath : (child.rootFolderPath || '');
+    // Priority: profile-level override → instance.localPath (Polyarr's mount) → instance.rootFolderPath (auto-detected from *Arr API)
+    const mainPath = (profile.mainPath && profile.mainPath.trim() !== '') ? profile.mainPath : (main.localPath && main.localPath.trim() !== '' ? main.localPath : (main.rootFolderPath || ''));
+    const childPath = (profile.childPath && profile.childPath.trim() !== '') ? profile.childPath : (child.localPath && child.localPath.trim() !== '' ? child.localPath : (child.rootFolderPath || ''));
     return { mainPath, childPath };
   }
 

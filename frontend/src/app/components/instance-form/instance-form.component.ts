@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Instance, RootFolder, QualityProfile } from '../../core/models';
 import { ApiService } from '../../core/services/api.service';
+import { PathBrowserComponent } from '../path-browser/path-browser.component';
 
 export function normalizeUrl(url: string): string {
   let normalized = (url || '').trim();
@@ -18,7 +19,7 @@ export function normalizeUrl(url: string): string {
 @Component({
   selector: 'app-instance-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PathBrowserComponent],
   template: `
     <div class="card" style="margin-bottom:var(--space-md);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
@@ -89,11 +90,16 @@ export function normalizeUrl(url: string): string {
       </div>
 
       <!-- Source of Truth checkbox: only visible when not explicitly fixed -->
-      <div *ngIf="fixedIsMain === undefined" style="display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-md);">
-        <input type="checkbox" id="isMainCheck" [(ngModel)]="formData.isMain" style="accent-color:var(--accent-primary);width:18px;height:18px;cursor:pointer;" />
-        <label for="isMainCheck" style="cursor:pointer;font-size:0.9rem;font-weight:500;">
-          Source of Truth Instance (Main library)
-        </label>
+      <div *ngIf="fixedIsMain === undefined" style="margin-bottom:var(--space-md);">
+        <div style="display:flex;align-items:center;gap:var(--space-sm);">
+          <input type="checkbox" id="isMainCheck" [(ngModel)]="formData.isMain" style="accent-color:var(--accent-primary);width:18px;height:18px;cursor:pointer;" />
+          <label for="isMainCheck" style="cursor:pointer;font-size:0.9rem;font-weight:500;">
+            Source of Truth Instance (Main library)
+          </label>
+        </div>
+        <p class="form-hint" style="margin-left:26px;margin-top:4px;">
+          Designates this as your primary library (e.g. English). Polyarr monitors this server for new downloads to sync, hardlink, and coordinate with secondary child instances.
+        </p>
       </div>
 
       <!-- Live Test Result Banner -->
@@ -108,41 +114,69 @@ export function normalizeUrl(url: string): string {
         <span class="spinner"></span> Testing connection & discovering server settings...
       </div>
 
-      <!-- Optional Auto-Discovered Server Settings -->
-      <div *ngIf="rootFolders.length > 0 || qualityProfiles.length > 0" style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+      <!-- Server Settings (Root Folder & Quality Profile) -->
+      <div *ngIf="isEditing || testResult?.success || rootFolders.length > 0 || qualityProfiles.length > 0 || formData.rootFolderPath" style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
         <div style="font-size:0.85rem;font-weight:600;color:var(--accent-primary);margin-bottom:var(--space-sm);">
-          ⚙️ Auto-Discovered Server Settings
+          ⚙️ Server Settings
         </div>
 
-        @if (rootFolders.length > 0) {
-          <div class="form-group" style="margin-bottom:var(--space-sm);">
-            <label class="form-label">Root Media Folder</label>
+        <div class="form-group" [style.margin-bottom]="formData.isMain ? '0' : 'var(--space-sm)'">
+          <label class="form-label">Root Media Folder</label>
+          @if (rootFolders.length > 0) {
             <select class="form-select" [(ngModel)]="formData.rootFolderPath">
               @for (folder of rootFolders; track folder.id) {
                 <option [value]="folder.path">{{ folder.path }}</option>
               }
+              <option *ngIf="formData.rootFolderPath && !hasRootFolder(formData.rootFolderPath)" [value]="formData.rootFolderPath">{{ formData.rootFolderPath }}</option>
             </select>
-          </div>
-        }
+          } @else {
+            <input class="form-input" [(ngModel)]="formData.rootFolderPath" placeholder="e.g. /data/media/movies" />
+          }
+          <p class="form-hint">
+            The media root directory configured in this *Arr instance where files are located.
+          </p>
+        </div>
 
-        @if (qualityProfiles.length > 0) {
-          <div class="form-group" style="margin-bottom:0;">
-            <label class="form-label">Quality Profile</label>
+        <div class="form-group" style="margin-bottom:0;" *ngIf="!formData.isMain">
+          <label class="form-label">Quality Profile</label>
+          @if (qualityProfiles.length > 0) {
             <select class="form-select" [(ngModel)]="formData.qualityProfileId">
               @for (profile of qualityProfiles; track profile.id) {
                 <option [value]="profile.id">{{ profile.name }}</option>
               }
+              <option *ngIf="formData.qualityProfileId && !hasQualityProfile(formData.qualityProfileId)" [value]="formData.qualityProfileId">Profile #{{ formData.qualityProfileId }}</option>
             </select>
-          </div>
-        }
+          } @else {
+            <input class="form-input" type="number" [(ngModel)]="formData.qualityProfileId" placeholder="1" />
+          }
+          <p class="form-hint">
+            The quality profile assigned when Polyarr adds new movies or series to this child instance (e.g. for hardlinking or indexer searches).
+          </p>
+        </div>
+      </div>
+
+      <!-- Polyarr Local Path -->
+      <div *ngIf="isEditing || testResult?.success || formData.rootFolderPath || formData.localPath || rootFolders.length > 0" style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+        <div style="font-size:0.85rem;font-weight:600;color:var(--accent-primary);margin-bottom:var(--space-sm);">
+          📂 Polyarr's Local Path
+        </div>
+        <app-path-browser
+          [currentPath]="formData.localPath || ''"
+          (currentPathChange)="formData.localPath = $event"
+          placeholder="/path/to/media"
+          hint="The directory on Polyarr's server where this instance's media is accessible. Usually matches the Root Folder above. Change only if Polyarr mounts the media at a different path."
+        ></app-path-browser>
       </div>
 
       <!-- Actions -->
-      <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-lg);">
-        <button class="btn btn-secondary" (click)="testConnection()" [disabled]="isTesting || !hasMinFields" id="test-connection-btn">
+      <div style="display:flex;gap:var(--space-sm);justify-content:flex-end;margin-top:var(--space-lg);">
+        <button class="btn btn-ghost" (click)="cancel.emit()" *ngIf="showCancel" type="button">
+          Cancel
+        </button>
+        <button class="btn btn-secondary" (click)="testConnection()" [disabled]="isTesting || !hasMinFields" id="test-connection-btn" type="button">
           Test Connection
         </button>
-        <button class="btn btn-primary" (click)="save()" [disabled]="!isValid" id="save-instance-btn">
+        <button class="btn btn-primary" (click)="save()" [disabled]="!isValid" id="save-instance-btn" type="button">
           {{ isEditing ? 'Update' : 'Add' }} Instance
         </button>
       </div>
@@ -178,8 +212,21 @@ export class InstanceFormComponent {
   @Input() set instance(val: Instance | null) {
     if (val) {
       this.formData = { ...val };
+      if (!this.formData.localPath && this.formData.rootFolderPath) {
+        this.formData.localPath = this.formData.rootFolderPath;
+      }
       this.isEditing = true;
+      this.fetchMetadata();
     }
+  }
+
+  hasRootFolder(path: string): boolean {
+    return this.rootFolders.some(f => f.path === path);
+  }
+
+  hasQualityProfile(id: number | undefined): boolean {
+    if (id === undefined) return false;
+    return this.qualityProfiles.some(p => p.id === id);
   }
 
   @Output() saved = new EventEmitter<Partial<Instance>>();
@@ -192,6 +239,7 @@ export class InstanceFormComponent {
     apiKey: '',
     language: 'en',
     rootFolderPath: '',
+    localPath: '',
     qualityProfileId: 1,
     isMain: false,
   };
@@ -267,6 +315,10 @@ export class InstanceFormComponent {
         this.rootFolders = folders || [];
         if (this.rootFolders.length > 0 && !this.formData.rootFolderPath) {
           this.formData.rootFolderPath = this.rootFolders[0].path;
+        }
+        // Pre-populate localPath from rootFolderPath if not already set
+        if (this.rootFolders.length > 0 && !this.formData.localPath) {
+          this.formData.localPath = this.formData.rootFolderPath;
         }
       },
       error: () => {},

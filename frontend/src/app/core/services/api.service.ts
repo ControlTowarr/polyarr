@@ -139,6 +139,11 @@ export class ApiService {
     return this.http.get<PaginatedResult<SyncHistoryEntry>>(`${this.baseUrl}/history/logs`, { params: this.buildHttpParams(params) });
   }
 
+  // Filesystem Browser
+  browseFilesystem(browsePath: string): Observable<{ currentPath: string; parent: string | null; directories: { name: string; path: string }[] }> {
+    return this.http.get<any>(`${this.baseUrl}/filesystem/browse`, { params: { path: browsePath } });
+  }
+
   // Settings
   getSettings(): Observable<Settings> {
     return this.http.get<Settings>(`${this.baseUrl}/settings`);

@@ -23,6 +23,11 @@ export class Instance {
   @Column({ default: '' })
   rootFolderPath!: string;
 
+  /** The path on Polyarr's local filesystem that corresponds to this instance's rootFolderPath.
+   *  If empty, defaults to rootFolderPath (assumes identical mount paths). */
+  @Column({ default: '' })
+  localPath!: string;
+
   @Column({ default: 1 })
   qualityProfileId!: number;
 

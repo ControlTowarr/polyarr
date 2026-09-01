@@ -67,6 +67,7 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
               </div>
               <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">{{ inst.url }}</div>
               <div style="font-size:0.75rem;color:var(--text-muted);" *ngIf="inst.rootFolderPath">Root: {{ inst.rootFolderPath }}</div>
+              <div style="font-size:0.75rem;color:var(--accent-primary);" *ngIf="inst.localPath && inst.localPath !== inst.rootFolderPath">Polyarr Mount: {{ inst.localPath }}</div>
             </div>
           </div>
 

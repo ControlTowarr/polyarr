@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
@@ -23,7 +23,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
     </div>
 
     <!-- View Mode Selector -->
-    <div class="filter-pills" style="margin-bottom: var(--space-lg);">
+    <div class="filter-pills mb-lg">
       <button
         class="filter-pill"
         [class.active]="activeView === 'events'"
@@ -45,7 +45,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
          ═══════════════════════════════════════════════════════════════ -->
     <div *ngIf="activeView === 'events'">
       <!-- Trigger Type Filter Pills -->
-      <div class="filter-pills" style="margin-bottom: var(--space-md);">
+      <div class="filter-pills mb-md">
         <button
           class="filter-pill"
           [class.active]="selectedTriggerFilter === ''"
@@ -70,19 +70,19 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
       </div>
 
       <div class="card">
-        <div *ngIf="isLoading" style="display:flex;justify-content:center;padding:var(--space-xl);">
-          <span class="spinner" style="width:32px;height:32px;"></span>
+        <div *ngIf="isLoading" class="loading-center">
+          <span class="spinner spinner-lg"></span>
         </div>
 
-        <div *ngIf="!isLoading && syncRuns.length === 0" class="empty-state" style="padding:var(--space-xl);">
-          <div style="font-size:2.5rem;margin-bottom:var(--space-sm);">⚡</div>
+        <div *ngIf="!isLoading && syncRuns.length === 0" class="empty-state empty-state-lg">
+          <div class="empty-icon-lg">⚡</div>
           <p class="empty-state-text">No sync events recorded yet.</p>
-          <p style="font-size:0.85rem;color:var(--text-muted);">
+          <p class="empty-hint">
             Sync events are created whenever a manual sync, dry run simulation, background schedule, or webhook import runs.
           </p>
         </div>
 
-        <div style="overflow-x:auto;" *ngIf="!isLoading && syncRuns.length > 0">
+        <div class="table-responsive" *ngIf="!isLoading && syncRuns.length > 0">
           <table class="data-table">
             <thead>
               <tr>
@@ -92,19 +92,19 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                 <th>Results Summary</th>
                 <th>Status</th>
                 <th>Duration</th>
-                <th style="text-align: right;">Action</th>
+                <th class="text-right">Action</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let run of syncRuns" (click)="openRunDetail(run)" style="cursor: pointer;">
-                <td style="font-size:0.85rem;color:var(--text-primary);white-space:nowrap;font-weight:500;">
+              <tr *ngFor="let run of syncRuns" (click)="openRunDetail(run)" class="table-row-clickable">
+                <td class="text-primary-semibold text-nowrap">
                   {{ formatDate(run.createdAt) }}
                 </td>
                 <td>
-                  <div style="display: flex; align-items: center; gap: 6px;">
+                  <div class="flex-row-gap-sm">
                     <span class="badge badge-radarr" *ngIf="run.syncProfile?.mainInstance?.type === 'radarr'">RADARR</span>
                     <span class="badge badge-sonarr" *ngIf="run.syncProfile?.mainInstance?.type === 'sonarr'">SONARR</span>
-                    <strong style="font-size: 0.9rem; color: var(--text-primary);">
+                    <strong class="profile-title-text">
                       {{ getProfileDisplayName(run) }}
                     </strong>
                   </div>
@@ -120,7 +120,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                   </span>
                 </td>
                 <td>
-                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  <div class="flex-row-wrap-sm">
                     <span class="badge badge-success" *ngIf="run.linkedCount > 0">
                       🔗 {{ run.linkedCount }} {{ run.triggerType === 'dry_run' ? 'would link' : 'linked' }}
                     </span>
@@ -133,7 +133,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                     <span class="badge badge-danger" *ngIf="run.errorCount > 0">
                       ⚠️ {{ run.errorCount }} error{{ run.errorCount > 1 ? 's' : '' }}
                     </span>
-                    <span style="font-size: 0.8rem; color: var(--text-muted);" *ngIf="run.totalScanned > 0">
+                    <span class="badge-count-hint" *ngIf="run.totalScanned > 0">
                       ({{ run.totalScanned }} scanned)
                     </span>
                   </div>
@@ -143,15 +143,22 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                     'badge-success': run.status === 'completed',
                     'badge-warning': run.status === 'partial',
                     'badge-danger': run.status === 'error',
-                    'badge-info': run.status === 'running'
+                    'badge-info': run.status === 'running',
+                    'badge-interrupted': run.status === 'interrupted'
                   }">
-                    {{ run.status | uppercase }}
+                    <span class="spinner-inline" *ngIf="run.status === 'running'"></span>
+                    {{ run.status === 'interrupted' ? '⏸️ INTERRUPTED' : (run.status | uppercase) }}
                   </span>
                 </td>
-                <td style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">
-                  {{ formatDuration(run.durationMs) }}
+                <td class="duration-text">
+                  <span *ngIf="run.status === 'running'" class="duration-running">
+                    {{ formatDuration(getRunDuration(run)) }}
+                  </span>
+                  <span *ngIf="run.status !== 'running'">
+                    {{ formatDuration(getRunDuration(run)) }}
+                  </span>
                 </td>
-                <td style="text-align: right;" (click)="$event.stopPropagation()">
+                <td class="text-right" (click)="$event.stopPropagation()">
                   <button class="btn btn-secondary btn-sm" (click)="openRunDetail(run)">
                     🔍 Inspect
                   </button>
@@ -207,16 +214,16 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
       </div>
 
       <div class="card">
-        <div *ngIf="isLoading" style="display:flex;justify-content:center;padding:var(--space-xl);">
-          <span class="spinner" style="width:32px;height:32px;"></span>
+        <div *ngIf="isLoading" class="loading-center">
+          <span class="spinner spinner-lg"></span>
         </div>
 
-        <div *ngIf="!isLoading && history.length === 0" class="empty-state" style="padding:var(--space-xl);">
-          <div style="font-size:2rem;margin-bottom:var(--space-sm);">📋</div>
+        <div *ngIf="!isLoading && history.length === 0" class="empty-state empty-state-lg">
+          <div class="empty-icon-md">📋</div>
           <p class="empty-state-text">No raw logs recorded yet.</p>
         </div>
 
-        <div style="overflow-x:auto;" *ngIf="!isLoading && history.length > 0">
+        <div class="table-responsive" *ngIf="!isLoading && history.length > 0">
           <table class="data-table">
             <thead>
               <tr>
@@ -229,8 +236,8 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
             </thead>
             <tbody>
               <tr *ngFor="let item of history">
-                <td style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;">{{ formatDate(item.createdAt) }}</td>
-                <td style="font-weight:600;">{{ item.mediaTitle }}</td>
+                <td class="text-time-muted">{{ formatDate(item.createdAt) }}</td>
+                <td class="text-title-bold">{{ item.mediaTitle }}</td>
                 <td>
                   <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
                     {{ item.mediaType | uppercase }}
@@ -238,15 +245,15 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                 </td>
                 <td>
                   <span class="badge" [ngClass]="{
-                    'badge-success': item.action === 'linked' || item.action === 'added',
-                    'badge-info': item.action === 'search_triggered',
+                    'badge-success': item.action === 'linked' || item.action === 'added' || item.action === 'would_link',
+                    'badge-info': item.action === 'search_triggered' || item.action === 'needs_download',
                     'badge-warning': item.action === 'season_monitored',
                     'badge-danger': item.action === 'error'
                   }">
                     {{ item.action }}
                   </span>
                 </td>
-                <td style="font-size:0.85rem;color:var(--text-secondary);max-width:400px;word-break:break-word;">
+                <td class="text-detail-secondary">
                   {{ item.details }}
                 </td>
               </tr>
@@ -273,9 +280,12 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
               <span class="badge" [ngClass]="{
                 'badge-success': selectedRunDetail.run.status === 'completed',
                 'badge-warning': selectedRunDetail.run.status === 'partial',
-                'badge-danger': selectedRunDetail.run.status === 'error'
+                'badge-danger': selectedRunDetail.run.status === 'error',
+                'badge-info': selectedRunDetail.run.status === 'running',
+                'badge-interrupted': selectedRunDetail.run.status === 'interrupted'
               }">
-                {{ selectedRunDetail.run.status | uppercase }}
+                <span class="spinner-inline" *ngIf="selectedRunDetail.run.status === 'running'"></span>
+                {{ selectedRunDetail.run.status === 'interrupted' ? '⏸️ INTERRUPTED' : (selectedRunDetail.run.status | uppercase) }}
               </span>
               <span class="badge" [ngClass]="selectedRunDetail.run.triggerType === 'dry_run' ? 'badge-sonarr' : 'badge-info'" *ngIf="selectedRunDetail.run.triggerType">
                 {{ selectedRunDetail.run.triggerType === 'dry_run' ? '🧪 DRY RUN' : (selectedRunDetail.run.triggerType | uppercase) }}
@@ -284,7 +294,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
             <p class="dry-run-header-sub">
               Profile: <strong class="text-primary-emphasis">{{ getProfileDisplayName(selectedRunDetail.run) }}</strong> &bull; 
               Executed at {{ formatDate(selectedRunDetail.run.createdAt) }} &bull; 
-              Duration: <strong>{{ formatDuration(selectedRunDetail.run.durationMs) }}</strong>
+              Duration: <strong>{{ formatDuration(getRunDuration(selectedRunDetail.run)) }}</strong>
             </p>
           </div>
 
@@ -297,6 +307,12 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
 
         <!-- Modal Body Scrollable -->
         <div class="dry-run-body">
+          
+          <!-- Running In-Progress Banner -->
+          <div class="running-banner" *ngIf="selectedRunDetail.run.status === 'running'">
+            <span class="spinner-inline"></span>
+            <span>Sync is currently running... Items and logs are updating live in real time.</span>
+          </div>
           
           <!-- Summary Metrics Cards Grid -->
           <div class="dry-run-stats-grid">
@@ -354,7 +370,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
           </div>
 
           <!-- In-Modal Search Bar -->
-          <div style="margin: var(--space-md) 0 var(--space-sm) 0;">
+          <div class="search-bar-container">
             <input 
               type="text" 
               class="form-input" 
@@ -503,20 +519,20 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                 </div>
                 <span class="summary-hint">Chronological logs for this sync event</span>
               </summary>
-              <div class="section-content" style="max-height: 320px;">
+              <div class="section-content logs-section-content">
                 <div *ngIf="filteredLogs.length === 0" class="section-empty">
                   No log entries recorded.
                 </div>
                 <div class="raw-logs-container" *ngIf="filteredLogs.length > 0">
                   <div *ngFor="let log of filteredLogs" class="raw-log-line">
                     <span class="raw-log-time">{{ formatDate(log.createdAt) }}</span>
-                    <span class="badge" [ngClass]="{
+                    <span class="badge badge-log-tag" [ngClass]="{
                       'badge-success': log.action === 'linked' || log.action === 'added' || log.action === 'would_link',
                       'badge-info': log.action === 'search_triggered' || log.action === 'needs_download',
                       'badge-warning': log.action === 'season_monitored',
                       'badge-danger': log.action === 'error',
                       'badge-muted': log.action === 'already_linked' || log.action === 'already_exists_child'
-                    }" style="font-size: 0.65rem; padding: 2px 5px;">
+                    }">
                       {{ log.action | uppercase }}
                     </span>
                     <span class="raw-log-msg">
@@ -545,7 +561,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
     </div>
   `,
 })
-export class HistoryComponent implements OnInit {
+export class HistoryComponent implements OnInit, OnDestroy {
   activeView: 'events' | 'logs' = 'events';
   isLoading = false;
 
@@ -566,15 +582,91 @@ export class HistoryComponent implements OnInit {
   selectedRunDetail: SyncRunDetail | null = null;
   modalSearchQuery = '';
 
+  // Live Timer & Polling State
+  private liveTickerTimer: any = null;
+  private pollingTimer: any = null;
+  now: number = Date.now();
+
   constructor(
     private api: ApiService,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit() {
+    this.startLiveTicker();
     this.loadSyncRuns();
     this.loadSyncRunsCount();
     this.loadRawLogsCount();
+  }
+
+  ngOnDestroy() {
+    this.stopLiveTicker();
+    this.stopPolling();
+  }
+
+  private startLiveTicker() {
+    if (this.liveTickerTimer) return;
+    this.liveTickerTimer = setInterval(() => {
+      this.now = Date.now();
+      const hasActive = this.syncRuns.some(r => r.status === 'running') || this.selectedRunDetail?.run.status === 'running';
+      if (hasActive) {
+        this.cdr.detectChanges();
+      }
+    }, 1000);
+  }
+
+  private stopLiveTicker() {
+    if (this.liveTickerTimer) {
+      clearInterval(this.liveTickerTimer);
+      this.liveTickerTimer = null;
+    }
+  }
+
+  private checkAndSetupPolling() {
+    const hasRunning = this.syncRuns.some(r => r.status === 'running');
+    if (hasRunning && !this.pollingTimer) {
+      this.pollingTimer = setInterval(() => {
+        this.pollActiveRuns();
+      }, 3000);
+    } else if (!hasRunning && this.pollingTimer) {
+      this.stopPolling();
+    }
+  }
+
+  private stopPolling() {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+  }
+
+  private pollActiveRuns() {
+    const params: any = { limit: 50 };
+    if (this.selectedTriggerFilter === 'dry_run') {
+      params.triggerType = 'dry_run';
+    }
+
+    this.api.getSyncRuns(params).subscribe({
+      next: (res: any) => {
+        let list: SyncRun[] = res?.data || res?.items || (Array.isArray(res) ? res : []);
+        if (this.selectedTriggerFilter === 'live') {
+          list = list.filter(r => r.triggerType !== 'dry_run');
+        }
+        this.syncRuns = list;
+        this.checkAndSetupPolling();
+        this.cdr.detectChanges();
+      },
+    });
+
+    // If inspection modal is open on a running job, refresh its details too
+    if (this.showRunModal && this.selectedRunDetail && this.selectedRunDetail.run.status === 'running') {
+      this.api.getSyncRunDetail(this.selectedRunDetail.run.id).subscribe({
+        next: (detail: SyncRunDetail) => {
+          this.selectedRunDetail = detail;
+          this.cdr.detectChanges();
+        },
+      });
+    }
   }
 
   switchView(view: 'events' | 'logs') {
@@ -622,11 +714,13 @@ export class HistoryComponent implements OnInit {
         }
         this.syncRuns = list;
         this.isLoading = false;
+        this.checkAndSetupPolling();
         this.cdr.detectChanges();
       },
       error: () => {
         this.syncRuns = [];
         this.isLoading = false;
+        this.checkAndSetupPolling();
         this.cdr.detectChanges();
       },
     });
@@ -747,6 +841,15 @@ export class HistoryComponent implements OnInit {
     } catch {
       return String(dateStr);
     }
+  }
+
+  getRunDuration(run?: SyncRun): number {
+    if (!run) return 0;
+    if (run.status === 'running' && run.createdAt) {
+      const start = new Date(run.createdAt).getTime();
+      return Math.max(0, this.now - start);
+    }
+    return run.durationMs || 0;
   }
 
   formatDuration(ms?: number): string {

@@ -21,7 +21,7 @@ export class SyncRun {
   triggerType!: 'manual' | 'scheduled' | 'webhook' | 'dry_run';
 
   @Column({ type: 'varchar', default: 'running' })
-  status!: 'running' | 'completed' | 'partial' | 'error';
+  status!: 'running' | 'completed' | 'partial' | 'error' | 'interrupted';
 
   @Column({ type: 'integer', default: 0 })
   totalScanned!: number;

@@ -1474,4 +1474,64 @@ input:checked + .switch-slider:before {
   word-break: break-word;
 }
 
+/* Inline Spinner for Badges & Status */
+.spinner-inline {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.badge-interrupted {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.running-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: #60a5fa;
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 0.85rem;
+  margin-bottom: var(--space-md);
+}
+
+/* Reusable Spacing, Table & Typography Helpers */
+.mb-lg { margin-bottom: var(--space-lg); }
+.mb-md { margin-bottom: var(--space-md); }
+.mb-sm { margin-bottom: var(--space-sm); }
+.loading-center { display: flex; justify-content: center; padding: var(--space-xl); }
+.spinner-lg { width: 32px; height: 32px; }
+.empty-state-lg { padding: var(--space-xl); }
+.empty-icon-lg { font-size: 2.5rem; margin-bottom: var(--space-sm); }
+.empty-icon-md { font-size: 2rem; margin-bottom: var(--space-sm); }
+.empty-hint { font-size: 0.85rem; color: var(--text-muted); }
+.table-responsive { overflow-x: auto; }
+.text-right { text-align: right; }
+.text-nowrap { white-space: nowrap; }
+.text-primary-semibold { font-size: 0.85rem; color: var(--text-primary); font-weight: 500; }
+.text-title-bold { font-weight: 600; }
+.text-detail-secondary { font-size: 0.85rem; color: var(--text-secondary); max-width: 400px; word-break: break-word; }
+.text-time-muted { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+.flex-row-gap-sm { display: flex; align-items: center; gap: 6px; }
+.flex-row-wrap-sm { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.profile-title-text { font-size: 0.9rem; color: var(--text-primary); }
+.badge-count-hint { font-size: 0.8rem; color: var(--text-muted); }
+.badge-log-tag { font-size: 0.65rem; padding: 2px 5px; }
+.duration-text { font-size: 0.85rem; color: var(--text-muted); white-space: nowrap; }
+.duration-running { color: #60a5fa; font-weight: 500; font-size: 0.85rem; white-space: nowrap; }
+.table-row-clickable { cursor: pointer; }
+.search-bar-container { margin: var(--space-md) 0 var(--space-sm) 0; }
+.logs-section-content { max-height: 320px; }
+
 

@@ -4,6 +4,7 @@ import cors from 'cors';
 import * as path from 'path';
 
 import { initializeDatabase } from './config/database';
+import { SyncRun } from './entities';
 import { logger } from './utils/logger';
 
 // Services
@@ -26,6 +27,25 @@ async function bootstrap() {
   try {
     const db = await initializeDatabase();
     logger.info('Database initialized');
+
+    // Recover any in-flight sync runs left over from an unexpected shutdown/restart
+    try {
+      const syncRunRepo = db.getRepository(SyncRun);
+      const runningRuns = await syncRunRepo.find({ where: { status: 'running' } });
+      if (runningRuns.length > 0) {
+        logger.warn(`[Startup] Found ${runningRuns.length} interrupted sync run(s) from prior session. Marking as interrupted.`);
+        for (const run of runningRuns) {
+          run.status = 'interrupted';
+          run.summary = run.summary && run.summary.trim() !== ''
+            ? `${run.summary} (Interrupted by server restart)`
+            : 'Sync interrupted: Server was restarted while sync was in progress.';
+          run.completedAt = new Date();
+          await syncRunRepo.save(run);
+        }
+      }
+    } catch (recoveryErr) {
+      logger.warn('[Startup] Failed to recover interrupted sync runs:', recoveryErr);
+    }
 
     const app = express();
     app.set('etag', false);

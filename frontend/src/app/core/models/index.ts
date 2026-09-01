@@ -86,7 +86,7 @@ export interface SyncRun {
   syncProfileId: number;
   syncProfile?: SyncProfile;
   triggerType: 'manual' | 'scheduled' | 'webhook' | 'dry_run';
-  status: 'running' | 'completed' | 'partial' | 'error';
+  status: 'running' | 'completed' | 'partial' | 'error' | 'interrupted';
   totalScanned: number;
   linkedCount: number;
   alreadyLinkedCount: number;

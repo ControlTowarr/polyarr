@@ -8,6 +8,9 @@ import {
   MediaItemDetail,
   MediaStats,
   SyncHistoryEntry,
+  SyncRun,
+  SyncRunDetail,
+  SyncRunQueryParams,
   Settings,
   RootFolder,
   QualityProfile,
@@ -108,13 +111,7 @@ export class ApiService {
 
   // Media
   getMediaItems(params: MediaQueryParams): Observable<PaginatedResult<MediaItem>> {
-    let httpParams = new HttpParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        httpParams = httpParams.set(key, value.toString());
-      }
-    });
-    return this.http.get<PaginatedResult<MediaItem>>(`${this.baseUrl}/media`, { params: httpParams });
+    return this.http.get<PaginatedResult<MediaItem>>(`${this.baseUrl}/media`, { params: this.buildHttpParams(params) });
   }
   
   getMediaItem(id: number): Observable<MediaItemDetail> {
@@ -129,15 +126,17 @@ export class ApiService {
     return this.http.post<any>(`${this.baseUrl}/media/scan`, {});
   }
 
-  // History
+  // History & Sync Runs
+  getSyncRuns(params: SyncRunQueryParams = {}): Observable<PaginatedResult<SyncRun>> {
+    return this.http.get<PaginatedResult<SyncRun>>(`${this.baseUrl}/history/runs`, { params: this.buildHttpParams(params) });
+  }
+
+  getSyncRunDetail(id: number | string): Observable<SyncRunDetail> {
+    return this.http.get<SyncRunDetail>(`${this.baseUrl}/history/runs/${id}`);
+  }
+
   getHistory(params: HistoryQueryParams): Observable<PaginatedResult<SyncHistoryEntry>> {
-    let httpParams = new HttpParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        httpParams = httpParams.set(key, value.toString());
-      }
-    });
-    return this.http.get<PaginatedResult<SyncHistoryEntry>>(`${this.baseUrl}/history`, { params: httpParams });
+    return this.http.get<PaginatedResult<SyncHistoryEntry>>(`${this.baseUrl}/history/logs`, { params: this.buildHttpParams(params) });
   }
 
   // Settings
@@ -147,5 +146,15 @@ export class ApiService {
   
   updateSettings(data: Partial<Settings>): Observable<Settings> {
     return this.http.put<Settings>(`${this.baseUrl}/settings`, data);
+  }
+
+  private buildHttpParams(params: Record<string, any>): HttpParams {
+    let httpParams = new HttpParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        httpParams = httpParams.set(key, value.toString());
+      }
+    });
+    return httpParams;
   }
 }

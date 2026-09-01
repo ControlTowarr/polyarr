@@ -50,10 +50,12 @@ export interface RadarrRootFolder {
 export interface AddMovieParams {
   title: string;
   tmdbId: number;
+  year?: number;
   qualityProfileId: number;
   rootFolderPath: string;
   monitored: boolean;
   searchForMovie: boolean;
+  movie?: any;
 }
 
 export interface RadarrWebhookPayload {
@@ -112,14 +114,26 @@ export class RadarrService {
   }
 
   async lookupMovie(tmdbId: number): Promise<RadarrMovie | null> {
-    const results = await this.request<RadarrMovie[]>('GET', `/movie/lookup?tmdbId=${tmdbId}`);
-    return results.length > 0 ? results[0] : null;
+    try {
+      const results = await this.request<RadarrMovie[]>('GET', `/movie/lookup?term=tmdb:${tmdbId}`);
+      if (Array.isArray(results) && results.length > 0) return results[0];
+    } catch {
+      try {
+        const result = await this.request<RadarrMovie>('GET', `/movie/lookup/tmdb?tmdbId=${tmdbId}`);
+        if (result) return result;
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   async addMovie(params: AddMovieParams): Promise<RadarrMovie> {
     const payload = {
-      title: params.title,
-      tmdbId: params.tmdbId,
+      ...(params.movie || {}),
+      title: params.title || params.movie?.title,
+      tmdbId: params.tmdbId || params.movie?.tmdbId,
+      year: params.year || params.movie?.year,
       qualityProfileId: params.qualityProfileId,
       rootFolderPath: params.rootFolderPath,
       monitored: params.monitored,

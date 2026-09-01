@@ -67,13 +67,69 @@ export interface MediaItemDetail extends MediaItem {
 
 export interface SyncHistoryEntry {
   id: number;
+  syncRunId?: string;
   syncProfileId: number;
   mediaTitle: string;
   mediaType: 'movie' | 'episode';
   externalId: string;
-  action: 'linked' | 'search_triggered' | 'added' | 'season_monitored' | 'error';
+  action: 'linked' | 'already_linked' | 'search_triggered' | 'added' | 'season_monitored' | 'skipped' | 'would_link' | 'needs_download' | 'already_exists_child' | 'error';
   details: string;
+  sourcePath?: string;
+  destinationPath?: string;
+  languagesDetected?: string[];
   createdAt: string;
+}
+
+export interface SyncRun {
+  id: number;
+  syncRunId: string;
+  syncProfileId: number;
+  syncProfile?: SyncProfile;
+  triggerType: 'manual' | 'scheduled' | 'webhook' | 'dry_run';
+  status: 'running' | 'completed' | 'partial' | 'error';
+  totalScanned: number;
+  linkedCount: number;
+  alreadyLinkedCount: number;
+  searchTriggeredCount: number;
+  alreadyExistsChildCount: number;
+  skippedCount: number;
+  errorCount: number;
+  durationMs: number;
+  summary: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface SyncRunDetail {
+  run: SyncRun;
+  items: SyncHistoryEntry[];
+  summary: {
+    totalScanned: number;
+    linkedCount: number;
+    alreadyLinkedCount: number;
+    searchTriggeredCount: number;
+    alreadyExistsChildCount: number;
+    skippedCount: number;
+    errorCount: number;
+    durationMs: number;
+  };
+  categorized: {
+    linked: SyncHistoryEntry[];
+    alreadyLinked: SyncHistoryEntry[];
+    searchTriggered: SyncHistoryEntry[];
+    alreadyExistsChild: SyncHistoryEntry[];
+    added: SyncHistoryEntry[];
+    seasonMonitored: SyncHistoryEntry[];
+    errors: SyncHistoryEntry[];
+  };
+}
+
+export interface SyncRunQueryParams {
+  page?: number;
+  limit?: number;
+  syncProfileId?: number;
+  status?: string;
+  triggerType?: string;
 }
 
 export interface MediaStats {
@@ -107,6 +163,7 @@ export interface HistoryQueryParams {
   page?: number;
   limit?: number;
   syncProfileId?: number;
+  syncRunId?: string;
   action?: string;
   mediaType?: string;
   search?: string;

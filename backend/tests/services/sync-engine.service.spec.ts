@@ -384,14 +384,15 @@ describe('SyncEngineService', () => {
       expect(stats.searchTriggered).toBe(1);
       expect(stats.errors).toBe(0);
 
-      // Verify that history logs were created for linked, search_triggered, and summary
+      // Verify that history logs were created for linked and search_triggered
       expect((syncEngine as any).logAction).toHaveBeenCalledWith(
         1,
         'Movie One',
         'movie',
         '101',
         'linked',
-        expect.stringContaining('Hardlinked file')
+        expect.stringContaining('Hardlinked file'),
+        expect.anything()
       );
       expect((syncEngine as any).logAction).toHaveBeenCalledWith(
         1,
@@ -399,15 +400,8 @@ describe('SyncEngineService', () => {
         'movie',
         '102',
         'search_triggered',
-        expect.stringContaining('Searched for missing language')
-      );
-      expect((syncEngine as any).logAction).toHaveBeenCalledWith(
-        1,
-        expect.stringContaining('Sync Run'),
-        'movie',
-        expect.any(String),
-        'linked',
-        expect.stringContaining('Sync completed')
+        expect.stringContaining('Searched for missing language'),
+        expect.anything()
       );
     });
 

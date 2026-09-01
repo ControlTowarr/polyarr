@@ -1,7 +1,7 @@
 import { DataSource } from 'typeorm';
 import { MediaInspectorService } from './media-inspector.service';
 import { LinkerService } from './linker.service';
-import { Instance, SyncProfile, MediaItem, MediaItemInstance, SyncHistory } from '../entities';
+import { Instance, SyncProfile, MediaItem, MediaItemInstance, SyncHistory, SyncRun } from '../entities';
 import { RadarrService, RadarrMovie, RadarrMovieFile, RadarrWebhookPayload } from './radarr.service';
 import { SonarrService, SonarrSeries, SonarrEpisode, SonarrEpisodeFile, SonarrWebhookPayload } from './sonarr.service';
 import { normalizeLanguageCode } from '../utils/languages';
@@ -110,7 +110,10 @@ export class SyncEngineService {
     }
   }
 
-  async syncProfile(profileId: number): Promise<{
+  async syncProfile(
+    profileId: number,
+    triggerType: 'manual' | 'scheduled' | 'webhook' = 'manual'
+  ): Promise<{
     total: number;
     linked: number;
     alreadyLinked: number;
@@ -118,6 +121,7 @@ export class SyncEngineService {
     searchTriggered: number;
     skipped: number;
     errors: number;
+    syncRunId?: string;
   }> {
     const profile = await this.db.getRepository(SyncProfile).findOne({
       where: { id: profileId },
@@ -140,92 +144,65 @@ export class SyncEngineService {
       errors: 0
     };
 
-    logger.info(`[Sync] Starting manual sync for profile ${profile.id}: ${main.name} (${main.type}) ➔ ${child.name}`);
+    const startTime = Date.now();
+    const syncRunId = `sync-${profile.id}-${startTime}`;
+
+    const syncRunRepo = this.db.getRepository(SyncRun);
+    let syncRun = syncRunRepo.create({
+      syncRunId,
+      syncProfileId: profile.id,
+      triggerType,
+      status: 'running',
+      totalScanned: 0,
+      linkedCount: 0,
+      alreadyLinkedCount: 0,
+      searchTriggeredCount: 0,
+      alreadyExistsChildCount: 0,
+      skippedCount: 0,
+      errorCount: 0,
+      durationMs: 0,
+    });
+    try {
+      const saved = await syncRunRepo.save(syncRun);
+      if (saved) syncRun = saved;
+    } catch (e) {
+      logger.warn('[Sync] Could not create initial sync run record:', e);
+    }
+
+    logger.info(`[Sync] Starting ${triggerType} sync for profile ${profile.id} (${syncRunId}): ${main.name} (${main.type}) ➔ ${child.name}`);
 
     if (main.type === 'radarr') {
-      const radarr = new RadarrService(main.url, main.apiKey);
-      const movies = await radarr.getMovies();
-      for (const movie of movies) {
-        if (!movie.hasFile) continue;
-        let movieFile = movie.movieFile;
-        if (!movieFile && movie.id) {
-          try {
-            const files = await radarr.getMovieFiles(movie.id);
-            if (files && files.length > 0) movieFile = files[0];
-          } catch (fileErr: any) {
-            logger.warn(`Could not fetch movie file for ${movie.title}:`, fileErr);
-          }
-        }
-        if (!movieFile || !movieFile.path) continue;
-        stats.total++;
-        try {
-          const res = await this.processMovie(profile, main, child, movie, movieFile);
-          if (res === 'linked') stats.linked++;
-          else if (res === 'already_linked') stats.alreadyLinked++;
-          else if (res === 'search_triggered') stats.searchTriggered++;
-          else if (res === 'already_exists') stats.alreadyExistsChild++;
-          else if (res === 'skipped') stats.skipped++;
-          else if (res === 'error') stats.errors++;
-        } catch (e: any) {
-          stats.errors++;
-          await this.logAction(profile.id, movie.title, 'movie', movie.tmdbId?.toString() || movie.id.toString(), 'error', e.message);
-        }
-      }
+      await this.syncRadarr(profile, main, child, syncRunId, stats);
     } else if (main.type === 'sonarr') {
-      const sonarr = new SonarrService(main.url, main.apiKey);
-      const seriesList = await sonarr.getSeries();
-      for (const s of seriesList) {
-        try {
-          const [episodes, files] = await Promise.all([
-            sonarr.getEpisodes(s.id),
-            sonarr.getEpisodeFiles(s.id)
-          ]);
-          const fileMap = new Map<number, SonarrEpisodeFile>();
-          for (const f of files) {
-            fileMap.set(f.id, f);
-          }
-          for (const ep of episodes) {
-            if (!ep.hasFile || !ep.episodeFileId) continue;
-            const file = fileMap.get(ep.episodeFileId);
-            if (!file || !file.path) continue;
-            stats.total++;
-            try {
-              const res = await this.processEpisode(profile, main, child, s, ep, file);
-              if (res === 'linked') stats.linked++;
-              else if (res === 'already_linked') stats.alreadyLinked++;
-              else if (res === 'search_triggered') stats.searchTriggered++;
-              else if (res === 'already_exists') stats.alreadyExistsChild++;
-              else if (res === 'skipped') stats.skipped++;
-              else if (res === 'error') stats.errors++;
-            } catch (e: any) {
-              stats.errors++;
-              await this.logAction(profile.id, `${s.title} S${ep.seasonNumber}E${ep.episodeNumber}`, 'episode', s.tvdbId?.toString() || s.id.toString(), 'error', e.message);
-            }
-          }
-        } catch (seriesErr: any) {
-          stats.errors++;
-          await this.logAction(profile.id, s.title, 'episode', s.tvdbId?.toString() || s.id.toString(), 'error', seriesErr.message);
-        }
-      }
+      await this.syncSonarr(profile, main, child, syncRunId, stats);
+    }
 
-      if (profile.syncMonitoredSeasons) {
-        await this.syncMonitoredSeasons(profile);
+    const durationMs = Date.now() - startTime;
+    const summaryDetails = `Sync completed for ${main.name} ➔ ${child.name}: ${stats.total} total items scanned (${stats.linked} linked, ${stats.alreadyLinked} already linked, ${stats.searchTriggered} searches triggered, ${stats.skipped} skipped, ${stats.errors} errors) in ${(durationMs / 1000).toFixed(1)}s.`;
+    logger.info(`[Sync] ${summaryDetails}`);
+
+    if (syncRun) {
+      syncRun.totalScanned = stats.total;
+      syncRun.linkedCount = stats.linked;
+      syncRun.alreadyLinkedCount = stats.alreadyLinked;
+      syncRun.searchTriggeredCount = stats.searchTriggered;
+      syncRun.alreadyExistsChildCount = stats.alreadyExistsChild;
+      syncRun.skippedCount = stats.skipped;
+      syncRun.errorCount = stats.errors;
+      syncRun.durationMs = durationMs;
+      syncRun.summary = summaryDetails;
+      syncRun.completedAt = new Date();
+      syncRun.status = stats.errors > 0
+        ? (stats.linked > 0 || stats.searchTriggered > 0 ? 'partial' : 'error')
+        : 'completed';
+      try {
+        await syncRunRepo.save(syncRun);
+      } catch (e) {
+        logger.warn('[Sync] Could not update final sync run record:', e);
       }
     }
 
-    const summaryDetails = `Sync completed for ${main.name} ➔ ${child.name}: ${stats.total} total items scanned (${stats.linked} linked, ${stats.alreadyLinked} already linked, ${stats.searchTriggered} searches triggered, ${stats.skipped} skipped, ${stats.errors} errors).`;
-    logger.info(`[Sync] ${summaryDetails}`);
-
-    await this.logAction(
-      profile.id,
-      `Sync Run: ${main.name} ➔ ${child.name}`,
-      main.type === 'radarr' ? 'movie' : 'episode',
-      `sync-${profile.id}-${Date.now()}`,
-      stats.errors > 0 ? 'error' : (stats.linked > 0 ? 'linked' : (stats.searchTriggered > 0 ? 'search_triggered' : 'added')),
-      summaryDetails
-    );
-
-    return stats;
+    return { ...stats, syncRunId };
   }
 
   async syncMonitoredSeasons(syncProfile: SyncProfile): Promise<void> {
@@ -257,6 +234,115 @@ export class SyncEngineService {
     }
   }
 
+  private async syncRadarr(
+    profile: SyncProfile,
+    main: Instance,
+    child: Instance,
+    syncRunId: string,
+    stats: { total: number; linked: number; alreadyLinked: number; alreadyExistsChild: number; searchTriggered: number; skipped: number; errors: number }
+  ): Promise<void> {
+    const radarr = new RadarrService(main.url, main.apiKey);
+    const movies = await radarr.getMovies();
+    for (const movie of movies) {
+      if (!movie.hasFile) continue;
+      let movieFile = movie.movieFile;
+      if (!movieFile && movie.id) {
+        try {
+          const files = await radarr.getMovieFiles(movie.id);
+          if (files && files.length > 0) movieFile = files[0];
+        } catch (fileErr: any) {
+          logger.warn(`Could not fetch movie file for ${movie.title}:`, fileErr);
+        }
+      }
+      if (!movieFile || !movieFile.path) continue;
+      stats.total++;
+      try {
+        const res = await this.processMovie(profile, main, child, movie, movieFile, syncRunId);
+        if (res === 'linked') stats.linked++;
+        else if (res === 'already_linked') stats.alreadyLinked++;
+        else if (res === 'search_triggered') stats.searchTriggered++;
+        else if (res === 'already_exists') stats.alreadyExistsChild++;
+        else if (res === 'skipped') stats.skipped++;
+        else if (res === 'error') stats.errors++;
+      } catch (e: any) {
+        stats.errors++;
+        await this.logAction(
+          profile.id, 
+          movie.title, 
+          'movie', 
+          movie.tmdbId?.toString() || movie.id.toString(), 
+          'error', 
+          e.message,
+          { syncRunId, sourcePath: movieFile?.path }
+        );
+      }
+    }
+  }
+
+  private async syncSonarr(
+    profile: SyncProfile,
+    main: Instance,
+    child: Instance,
+    syncRunId: string,
+    stats: { total: number; linked: number; alreadyLinked: number; alreadyExistsChild: number; searchTriggered: number; skipped: number; errors: number }
+  ): Promise<void> {
+    const sonarr = new SonarrService(main.url, main.apiKey);
+    const seriesList = await sonarr.getSeries();
+    for (const s of seriesList) {
+      try {
+        const [episodes, files] = await Promise.all([
+          sonarr.getEpisodes(s.id),
+          sonarr.getEpisodeFiles(s.id)
+        ]);
+        const fileMap = new Map<number, SonarrEpisodeFile>();
+        for (const f of files) {
+          fileMap.set(f.id, f);
+        }
+        for (const ep of episodes) {
+          if (!ep.hasFile || !ep.episodeFileId) continue;
+          const file = fileMap.get(ep.episodeFileId);
+          if (!file || !file.path) continue;
+          stats.total++;
+          try {
+            const res = await this.processEpisode(profile, main, child, s, ep, file, syncRunId);
+            if (res === 'linked') stats.linked++;
+            else if (res === 'already_linked') stats.alreadyLinked++;
+            else if (res === 'search_triggered') stats.searchTriggered++;
+            else if (res === 'already_exists') stats.alreadyExistsChild++;
+            else if (res === 'skipped') stats.skipped++;
+            else if (res === 'error') stats.errors++;
+          } catch (e: any) {
+            stats.errors++;
+            await this.logAction(
+              profile.id, 
+              `${s.title} S${ep.seasonNumber}E${ep.episodeNumber}`, 
+              'episode', 
+              s.tvdbId?.toString() || s.id.toString(), 
+              'error', 
+              e.message,
+              { syncRunId, sourcePath: file?.path }
+            );
+          }
+        }
+      } catch (seriesErr: any) {
+        stats.errors++;
+        await this.logAction(
+          profile.id, 
+          s.title, 
+          'episode', 
+          s.tvdbId?.toString() || s.id.toString(), 
+          'error', 
+          seriesErr.message,
+          { syncRunId }
+        );
+      }
+    }
+
+    if (profile.syncMonitoredSeasons) {
+      await this.syncMonitoredSeasons(profile);
+    }
+  }
+
   private getEffectivePaths(profile: SyncProfile, main: Instance, child: Instance): { mainPath: string; childPath: string } {
     const mainPath = (profile.mainPath && profile.mainPath.trim() !== '') ? profile.mainPath : (main.rootFolderPath || '');
     const childPath = (profile.childPath && profile.childPath.trim() !== '') ? profile.childPath : (child.rootFolderPath || '');
@@ -279,57 +365,105 @@ export class SyncEngineService {
     mainInstance: Instance,
     childInstance: Instance,
     movie: RadarrMovie,
-    movieFile: RadarrMovieFile
+    movieFile: RadarrMovieFile,
+    syncRunId?: string
   ): Promise<'linked' | 'already_linked' | 'search_triggered' | 'already_exists' | 'error' | 'skipped'> {
+    const sourcePath = movieFile.path || '';
+    const { mainPath, childPath } = this.getEffectivePaths(syncProfile, mainInstance, childInstance);
+    const destPath = this.linker.translatePath(sourcePath, mainPath, childPath);
+    let detectedLangs: string[] = [];
+
     try {
       const childRadarr = new RadarrService(childInstance.url, childInstance.apiKey);
       let targetMovie = await childRadarr.getMovieByTmdbId(movie.tmdbId);
 
-      const hasLang = await this.mediaInspector.hasLanguage(movieFile.path, childInstance.language, movieFile.mediaInfo);
+      const hasLang = await this.mediaInspector.hasLanguage(sourcePath, childInstance.language, movieFile.mediaInfo);
+      if (this.mediaInspector.detectLanguages) {
+        try {
+          detectedLangs = await this.mediaInspector.detectLanguages(sourcePath, movieFile.mediaInfo);
+        } catch {
+          detectedLangs = [];
+        }
+      }
 
       if (!targetMovie) {
-        const lookup = await childRadarr.lookupMovie(movie.tmdbId);
-        if (!lookup) throw new Error('Movie not found on child instance lookup');
+        const lookup = await childRadarr.lookupMovie(movie.tmdbId).catch(() => null);
+        const title = lookup?.title || movie.title;
+        const tmdbId = lookup?.tmdbId || movie.tmdbId;
+        const year = lookup?.year || movie.year;
+
         targetMovie = await childRadarr.addMovie({
-          title: lookup.title,
-          tmdbId: lookup.tmdbId,
+          title,
+          tmdbId,
+          year,
           qualityProfileId: childInstance.qualityProfileId,
           rootFolderPath: childInstance.rootFolderPath,
           monitored: true,
-          searchForMovie: !hasLang && syncProfile.searchIfMissing
+          searchForMovie: !hasLang && syncProfile.searchIfMissing,
+          movie: lookup || undefined
         });
         
-        await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'added', `Added missing movie to ${childInstance.name}`);
+        await this.logAction(
+          syncProfile.id, 
+          movie.title, 
+          'movie', 
+          movie.tmdbId.toString(), 
+          'added', 
+          `Added missing movie to ${childInstance.name}`,
+          { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
+        );
       } else {
         if (targetMovie.hasFile) {
           return 'already_exists';
         }
       }
 
-      await this.trackMediaItem(movie.tmdbId.toString(), 'movie', movie.title, movie.year, mainInstance.id, movie.id, movieFile.path, ['en']);
-
-      const { mainPath, childPath } = this.getEffectivePaths(syncProfile, mainInstance, childInstance);
+      await this.trackMediaItem(movie.tmdbId.toString(), 'movie', movie.title, movie.year, mainInstance.id, movie.id, movieFile.path, detectedLangs);
 
       if (hasLang) {
         // Main file contains target audio: link and rescan child
-        const linked = await this.linker.linkExists(movieFile.path, mainPath, childPath);
+        const linked = await this.linker.linkExists(sourcePath, mainPath, childPath);
         if (!linked) {
-          await this.linker.linkMedia(movieFile.path, mainPath, childPath, syncProfile.linkType);
+          await this.linker.linkMedia(sourcePath, mainPath, childPath, syncProfile.linkType);
           await childRadarr.rescanMovie(targetMovie.id);
-          await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'linked', `Hardlinked file to ${childInstance.name}`);
+          await this.logAction(
+            syncProfile.id, 
+            movie.title, 
+            'movie', 
+            movie.tmdbId.toString(), 
+            'linked', 
+            `Hardlinked file to ${childInstance.name}`,
+            { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
+          );
           return 'linked';
         }
         return 'already_linked';
       } else if (syncProfile.searchIfMissing) {
         // Target audio is missing AND auto-search is enabled: dispatch search to indexers
         await childRadarr.searchMovie([targetMovie.id]);
-        await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'search_triggered', `Searched for missing language on ${childInstance.name}`);
+        await this.logAction(
+          syncProfile.id, 
+          movie.title, 
+          'movie', 
+          movie.tmdbId.toString(), 
+          'search_triggered', 
+          `Searched for missing language on ${childInstance.name}`,
+          { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
+        );
         return 'search_triggered';
       }
       // Target audio is missing AND auto-search is disabled: no-op (file cannot be linked, search skipped)
       return 'skipped';
     } catch (e: any) {
-      await this.logAction(syncProfile.id, movie.title, 'movie', movie.tmdbId.toString(), 'error', e.message);
+      await this.logAction(
+        syncProfile.id, 
+        movie.title, 
+        'movie', 
+        movie.tmdbId.toString(), 
+        'error', 
+        e.message,
+        { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
+      );
       return 'error';
     }
   }
@@ -351,25 +485,41 @@ export class SyncEngineService {
     childInstance: Instance,
     series: SonarrSeries,
     episode: SonarrEpisode,
-    episodeFile: SonarrEpisodeFile
+    episodeFile: SonarrEpisodeFile,
+    syncRunId?: string
   ): Promise<'linked' | 'already_linked' | 'search_triggered' | 'already_exists' | 'error' | 'skipped'> {
+    const sourcePath = episodeFile.path || '';
+    const { mainPath, childPath } = this.getEffectivePaths(syncProfile, mainInstance, childInstance);
+    const destPath = this.linker.translatePath(sourcePath, mainPath, childPath);
+    let detectedLangs: string[] = [];
+
     try {
       const childSonarr = new SonarrService(childInstance.url, childInstance.apiKey);
       let targetSeries = await childSonarr.getSeriesByTvdbId(series.tvdbId);
 
       if (!targetSeries) {
-        const lookup = await childSonarr.lookupSeries(series.tvdbId);
-        if (!lookup) throw new Error('Series not found on lookup');
+        const lookup = await childSonarr.lookupSeries(series.tvdbId).catch(() => null);
+        const title = lookup?.title || series.title;
+        const tvdbId = lookup?.tvdbId || series.tvdbId;
+
         targetSeries = await childSonarr.addSeries({
-          title: lookup.title,
-          tvdbId: lookup.tvdbId,
+          title,
+          tvdbId,
           qualityProfileId: childInstance.qualityProfileId,
           rootFolderPath: childInstance.rootFolderPath,
           monitored: true,
-          seasons: series.seasons.map(s => ({ seasonNumber: s.seasonNumber, monitored: s.monitored })),
+          seasons: (lookup?.seasons || series.seasons).map(s => ({ seasonNumber: s.seasonNumber, monitored: s.monitored })),
           searchForMissingEpisodes: false
         });
-        await this.logAction(syncProfile.id, series.title, 'episode', series.tvdbId.toString(), 'added', `Added series to ${childInstance.name}`);
+        await this.logAction(
+          syncProfile.id, 
+          series.title, 
+          'episode', 
+          series.tvdbId.toString(), 
+          'added', 
+          `Added series to ${childInstance.name}`,
+          { syncRunId, sourcePath, destinationPath: destPath }
+        );
       }
 
       const childEpisodes = await childSonarr.getEpisodes(targetSeries.id);
@@ -379,17 +529,30 @@ export class SyncEngineService {
         return 'already_exists';
       }
 
-      const hasLang = await this.mediaInspector.hasLanguage(episodeFile.path, childInstance.language, episodeFile.mediaInfo);
-
-      const { mainPath, childPath } = this.getEffectivePaths(syncProfile, mainInstance, childInstance);
+      const hasLang = await this.mediaInspector.hasLanguage(sourcePath, childInstance.language, episodeFile.mediaInfo);
+      if (this.mediaInspector.detectLanguages) {
+        try {
+          detectedLangs = await this.mediaInspector.detectLanguages(sourcePath, episodeFile.mediaInfo);
+        } catch {
+          detectedLangs = [];
+        }
+      }
 
       if (hasLang) {
         // Main episode file contains target audio: link and rescan child series
-        const linked = await this.linker.linkExists(episodeFile.path, mainPath, childPath);
+        const linked = await this.linker.linkExists(sourcePath, mainPath, childPath);
         if (!linked) {
-          await this.linker.linkMedia(episodeFile.path, mainPath, childPath, syncProfile.linkType);
+          await this.linker.linkMedia(sourcePath, mainPath, childPath, syncProfile.linkType);
           await childSonarr.rescanSeries(targetSeries.id);
-          await this.logAction(syncProfile.id, `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 'episode', series.tvdbId.toString(), 'linked', `Linked file to ${childInstance.name}`);
+          await this.logAction(
+            syncProfile.id, 
+            `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 
+            'episode', 
+            series.tvdbId.toString(), 
+            'linked', 
+            `Linked file to ${childInstance.name}`,
+            { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
+          );
           return 'linked';
         }
         return 'already_linked';
@@ -397,14 +560,30 @@ export class SyncEngineService {
         // Target audio is missing AND auto-search is enabled: dispatch search for episode on indexers
         if (ce) {
           await childSonarr.searchEpisodes([ce.id]);
-          await this.logAction(syncProfile.id, `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 'episode', series.tvdbId.toString(), 'search_triggered', `Triggered search on ${childInstance.name}`);
+          await this.logAction(
+            syncProfile.id, 
+            `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 
+            'episode', 
+            series.tvdbId.toString(), 
+            'search_triggered', 
+            `Triggered search on ${childInstance.name}`,
+            { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
+          );
           return 'search_triggered';
         }
       }
       // Target audio is missing AND auto-search is disabled: no-op (file cannot be linked, search skipped)
       return 'skipped';
     } catch (e: any) {
-      await this.logAction(syncProfile.id, `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 'episode', series.tvdbId.toString(), 'error', e.message);
+      await this.logAction(
+        syncProfile.id, 
+        `${series.title} S${episode.seasonNumber}E${episode.episodeNumber}`, 
+        'episode', 
+        series.tvdbId.toString(), 
+        'error', 
+        e.message,
+        { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
+      );
       return 'error';
     }
   }
@@ -447,10 +626,27 @@ export class SyncEngineService {
     mediaType: 'movie' | 'episode',
     externalId: string,
     action: 'linked' | 'search_triggered' | 'added' | 'season_monitored' | 'error',
-    details: string
+    details: string,
+    meta?: {
+      syncRunId?: string;
+      sourcePath?: string;
+      destinationPath?: string;
+      languagesDetected?: string[];
+    }
   ): Promise<SyncHistory> {
     const repo = this.db.getRepository(SyncHistory);
-    const hist = repo.create({ syncProfileId, mediaTitle, mediaType, externalId, action, details });
+    const hist = repo.create({
+      syncProfileId,
+      mediaTitle,
+      mediaType,
+      externalId,
+      action,
+      details,
+      syncRunId: meta?.syncRunId,
+      sourcePath: meta?.sourcePath,
+      destinationPath: meta?.destinationPath,
+      languagesDetected: meta?.languagesDetected
+    });
     return repo.save(hist);
   }
 
@@ -467,6 +663,7 @@ export class SyncEngineService {
     const main = profile.mainInstance;
     const child = profile.childInstance;
     const targetLang = normalizeLanguageCode(child.language || 'en');
+    const startTime = Date.now();
 
     const report: DryRunReport = {
       profileId: profile.id,
@@ -502,6 +699,70 @@ export class SyncEngineService {
     report.summary.alreadyLinkedCount = report.alreadyLinked.length;
     report.summary.alreadyExistsChildCount = report.alreadyExistsChild.length;
     report.summary.errorCount = report.errors.length;
+    report.summary.totalScanned =
+      report.summary.wouldLinkCount +
+      report.summary.needsDownloadCount +
+      report.summary.alreadyLinkedCount +
+      report.summary.alreadyExistsChildCount +
+      report.summary.errorCount;
+
+    const durationMs = Date.now() - startTime;
+    const syncRunId = `dryrun-${profile.id}-${startTime}`;
+    const summaryDetails = `Dry run for ${main.name} ➔ ${child.name}: ${report.summary.totalScanned} total items simulated (${report.summary.wouldLinkCount} would link, ${report.summary.needsDownloadCount} needs download, ${report.summary.alreadyLinkedCount} already linked, ${report.summary.alreadyExistsChildCount} on secondary, ${report.summary.errorCount} errors) in ${(durationMs / 1000).toFixed(1)}s.`;
+
+    try {
+      const syncRunRepo = this.db.getRepository(SyncRun);
+      const historyRepo = this.db.getRepository(SyncHistory);
+
+      const syncRun = syncRunRepo.create({
+        syncRunId,
+        syncProfileId: profile.id,
+        triggerType: 'dry_run',
+        status: report.summary.errorCount > 0
+          ? (report.summary.wouldLinkCount > 0 || report.summary.needsDownloadCount > 0 ? 'partial' : 'error')
+          : 'completed',
+        totalScanned: report.summary.totalScanned,
+        linkedCount: report.summary.wouldLinkCount,
+        alreadyLinkedCount: report.summary.alreadyLinkedCount,
+        searchTriggeredCount: report.summary.needsDownloadCount,
+        alreadyExistsChildCount: report.summary.alreadyExistsChildCount,
+        skippedCount: 0,
+        errorCount: report.summary.errorCount,
+        durationMs,
+        summary: summaryDetails,
+        completedAt: new Date()
+      });
+      await syncRunRepo.save(syncRun);
+
+      const allSimItems: { item: DryRunItem; action: any }[] = [
+        ...report.wouldLink.map(i => ({ item: i, action: 'would_link' as const })),
+        ...report.needsDownload.map(i => ({ item: i, action: 'needs_download' as const })),
+        ...report.alreadyLinked.map(i => ({ item: i, action: 'already_linked' as const })),
+        ...report.alreadyExistsChild.map(i => ({ item: i, action: 'already_exists_child' as const })),
+        ...report.errors.map(i => ({ item: i, action: 'error' as const })),
+      ];
+
+      const historyEntries = allSimItems.map(({ item, action }) =>
+        historyRepo.create({
+          syncRunId,
+          syncProfileId: profile.id,
+          mediaTitle: item.title,
+          mediaType: item.mediaType,
+          externalId: item.externalId,
+          action,
+          details: item.reason,
+          sourcePath: item.sourcePath,
+          destinationPath: item.destinationPath,
+          languagesDetected: item.languagesDetected,
+        })
+      );
+
+      if (historyEntries.length > 0) {
+        await historyRepo.save(historyEntries);
+      }
+    } catch (persistErr) {
+      logger.warn('[DryRun] Failed to persist dry run audit record:', persistErr);
+    }
 
     return report;
   }
@@ -744,3 +1005,4 @@ export class SyncEngineService {
     }
   }
 }
+

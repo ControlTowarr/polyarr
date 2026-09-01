@@ -81,6 +81,19 @@ describe('RadarrService', () => {
     }));
   });
 
+  it('lookupMovie searches with term=tmdb: and returns first match', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 1, title: 'Winter\'s Bone', tmdbId: 39013 }],
+    });
+
+    const result = await radarrService.lookupMovie(39013);
+    (expect(result) as any).toEqual({ id: 1, title: 'Winter\'s Bone', tmdbId: 39013 });
+    expect(global.fetch).toHaveBeenCalledWith('http://localhost:7878/api/v3/movie/lookup?term=tmdb:39013', (expect as any).objectContaining({
+      method: 'GET',
+    }));
+  });
+
   it('throws error for non-ok response', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,

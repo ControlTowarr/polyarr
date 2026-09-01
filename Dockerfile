@@ -1,28 +1,36 @@
 # Stage 1: Build frontend
 FROM node:22-alpine AS frontend-build
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build -- --configuration production
+WORKDIR /app
+COPY package*.json tsconfig*.json ./
+COPY frontend/package*.json ./frontend/
+RUN npm ci --workspace=frontend
+COPY frontend/ ./frontend/
+RUN npm run build:frontend
 
 # Stage 2: Build backend
 FROM node:22-alpine AS backend-build
-WORKDIR /app/backend
-COPY backend/package*.json ./
-RUN npm ci
-COPY backend/ ./
-RUN npm run build
+WORKDIR /app
+COPY package*.json tsconfig*.json ./
+COPY backend/package*.json ./backend/
+RUN npm ci --workspace=backend
+COPY backend/ ./backend/
+RUN npm run build:backend
 
 # Stage 3: Production
 FROM node:22-alpine AS production
-RUN apk add --no-cache mediainfo
+RUN apk add --no-cache mediainfo python3 make g++
 WORKDIR /app
+
+# Install production dependencies
+COPY package*.json ./
+COPY backend/package*.json ./backend/
+RUN npm ci --omit=dev --workspace=backend && npm cache clean --force
+
+# Remove build tools to keep image slim
+RUN apk del python3 make g++
 
 # Copy backend build
 COPY --from=backend-build /app/backend/dist ./dist
-COPY --from=backend-build /app/backend/package*.json ./
-RUN npm ci --omit=dev
 
 # Copy frontend build into public directory
 COPY --from=frontend-build /app/frontend/dist/frontend/browser ./public

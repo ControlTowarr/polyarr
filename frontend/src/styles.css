@@ -288,6 +288,13 @@ a:hover {
   color: var(--text-secondary);
 }
 
+.form-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
 .form-input,
 .form-select {
   background: var(--bg-input);
@@ -812,7 +819,7 @@ input:checked + .switch-slider:before {
   border-bottom: 1px solid var(--border-subtle);
 }
 .data-table tr:hover td {
-  background: var(--bg-card);
+  background: var(--bg-card-hover);
 }
 
 /* ── Spinner ── */
@@ -1538,8 +1545,8 @@ input:checked + .switch-slider:before {
   cursor: pointer; 
   transition: background-color 0.15s ease;
 }
-.table-row-clickable:hover {
-  background-color: rgba(255, 255, 255, 0.04) !important;
+.table-row-clickable:hover td {
+  background-color: var(--bg-card-hover) !important;
 }
 .row-chevron {
   display: inline-flex;

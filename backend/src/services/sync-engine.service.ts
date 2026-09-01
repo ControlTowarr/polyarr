@@ -374,9 +374,6 @@ export class SyncEngineService {
     let detectedLangs: string[] = [];
 
     try {
-      const childRadarr = new RadarrService(childInstance.url, childInstance.apiKey);
-      let targetMovie = await childRadarr.getMovieByTmdbId(movie.tmdbId);
-
       const hasLang = await this.mediaInspector.hasLanguage(sourcePath, childInstance.language, movieFile.mediaInfo);
       if (this.mediaInspector.detectLanguages) {
         try {
@@ -385,6 +382,16 @@ export class SyncEngineService {
           detectedLangs = [];
         }
       }
+
+      await this.trackMediaItem(movie.tmdbId.toString(), 'movie', movie.title, movie.year, mainInstance.id, movie.id, movieFile.path, detectedLangs);
+
+      // Domain Rule: If target audio is missing AND auto-search is OFF, never add or modify child instance
+      if (!hasLang && !syncProfile.searchIfMissing) {
+        return 'skipped';
+      }
+
+      const childRadarr = new RadarrService(childInstance.url, childInstance.apiKey);
+      let targetMovie = await childRadarr.getMovieByTmdbId(movie.tmdbId);
 
       if (!targetMovie) {
         const lookup = await childRadarr.lookupMovie(movie.tmdbId).catch(() => null);
@@ -403,22 +410,33 @@ export class SyncEngineService {
           movie: lookup || undefined
         });
         
-        await this.logAction(
-          syncProfile.id, 
-          movie.title, 
-          'movie', 
-          movie.tmdbId.toString(), 
-          'added', 
-          `Added missing movie to ${childInstance.name}`,
-          { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
-        );
+        if (!hasLang && syncProfile.searchIfMissing) {
+          await this.logAction(
+            syncProfile.id, 
+            movie.title, 
+            'movie', 
+            movie.tmdbId.toString(), 
+            'search_triggered', 
+            `Added & triggered search for missing language on ${childInstance.name}`,
+            { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
+          );
+          return 'search_triggered';
+        } else {
+          await this.logAction(
+            syncProfile.id, 
+            movie.title, 
+            'movie', 
+            movie.tmdbId.toString(), 
+            'added', 
+            `Added movie to ${childInstance.name}`,
+            { syncRunId, sourcePath, destinationPath: destPath, languagesDetected: detectedLangs }
+          );
+        }
       } else {
         if (targetMovie.hasFile) {
           return 'already_exists';
         }
       }
-
-      await this.trackMediaItem(movie.tmdbId.toString(), 'movie', movie.title, movie.year, mainInstance.id, movie.id, movieFile.path, detectedLangs);
 
       if (hasLang) {
         // Main file contains target audio: link and rescan child
@@ -452,7 +470,6 @@ export class SyncEngineService {
         );
         return 'search_triggered';
       }
-      // Target audio is missing AND auto-search is disabled: no-op (file cannot be linked, search skipped)
       return 'skipped';
     } catch (e: any) {
       await this.logAction(
@@ -494,6 +511,20 @@ export class SyncEngineService {
     let detectedLangs: string[] = [];
 
     try {
+      const hasLang = await this.mediaInspector.hasLanguage(sourcePath, childInstance.language, episodeFile.mediaInfo);
+      if (this.mediaInspector.detectLanguages) {
+        try {
+          detectedLangs = await this.mediaInspector.detectLanguages(sourcePath, episodeFile.mediaInfo);
+        } catch {
+          detectedLangs = [];
+        }
+      }
+
+      // Domain Rule: If target audio is missing AND auto-search is OFF, never add or modify child instance
+      if (!hasLang && !syncProfile.searchIfMissing) {
+        return 'skipped';
+      }
+
       const childSonarr = new SonarrService(childInstance.url, childInstance.apiKey);
       let targetSeries = await childSonarr.getSeriesByTvdbId(series.tvdbId);
 
@@ -527,15 +558,6 @@ export class SyncEngineService {
 
       if (ce && ce.hasFile) {
         return 'already_exists';
-      }
-
-      const hasLang = await this.mediaInspector.hasLanguage(sourcePath, childInstance.language, episodeFile.mediaInfo);
-      if (this.mediaInspector.detectLanguages) {
-        try {
-          detectedLangs = await this.mediaInspector.detectLanguages(sourcePath, episodeFile.mediaInfo);
-        } catch {
-          detectedLangs = [];
-        }
       }
 
       if (hasLang) {
@@ -572,7 +594,6 @@ export class SyncEngineService {
           return 'search_triggered';
         }
       }
-      // Target audio is missing AND auto-search is disabled: no-op (file cannot be linked, search skipped)
       return 'skipped';
     } catch (e: any) {
       await this.logAction(
@@ -858,7 +879,7 @@ export class SyncEngineService {
               searchEnabled: profile.searchIfMissing,
               reason: profile.searchIfMissing
                 ? `Lacks ${targetLang.toUpperCase()} audio on main. Will add to ${child.name} and trigger search on indexers.`
-                : `Lacks ${targetLang.toUpperCase()} audio on main. Will add to ${child.name} as monitored (auto-search off).`,
+                : `Lacks ${targetLang.toUpperCase()} audio on main. Skipped (auto-search off; child instance will not be modified).`,
             });
           }
         }
@@ -985,7 +1006,7 @@ export class SyncEngineService {
                 searchEnabled: profile.searchIfMissing,
                 reason: profile.searchIfMissing
                   ? `Lacks ${targetLang.toUpperCase()} audio on main. Will trigger search on ${child.name}.`
-                  : `Lacks ${targetLang.toUpperCase()} audio on main. Monitored on ${child.name} (auto-search off).`,
+                  : `Lacks ${targetLang.toUpperCase()} audio on main. Skipped (auto-search off; child instance will not be modified).`,
               });
             }
           }

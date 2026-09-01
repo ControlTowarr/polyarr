@@ -129,8 +129,8 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
         <div class="form-group">
           <label class="form-label">Delay Before Child Search (Hours)</label>
           <input class="form-input" type="number" [(ngModel)]="currentProfile.delayHours" min="0" max="720" />
-          <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">
-            Wait this many hours before searching the child instance if target audio is missing.
+          <p class="form-hint">
+            Hours to wait before triggering a fallback search on the child instance. Gives the parent instance time to download and import its multi-audio file first. If multi-audio is detected, it is hardlinked immediately with zero delay.
           </p>
         </div>
 
@@ -256,8 +256,11 @@ import { InstanceFormComponent } from '../../components/instance-form/instance-f
       </div>
 
       <div class="form-group">
-        <label class="form-label">Default Delay Before Child Search (hours)</label>
+        <label class="form-label">Default Delay Before Child Search (Hours)</label>
         <input class="form-input input-narrow" type="number" [(ngModel)]="settings.defaultDelayHours" min="0" max="720" />
+        <p class="form-hint">
+          Default wait time (in hours) before child instances initiate fallback indexer searches. Multi-audio hardlinks are always created immediately.
+        </p>
       </div>
 
       <div class="form-group">

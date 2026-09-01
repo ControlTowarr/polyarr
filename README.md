@@ -27,20 +27,19 @@ Polyarr acts as an intelligent coordinator between your **Main** (primary langua
 graph TD;
     Main[Main Radarr / Sonarr] -->|Webhook / Library Scan| Polyarr;
     Polyarr -->|Inspect Audio Tracks| Media[Media File];
-    Media -->|Contains Target Language| Link[Create Hardlink / Symlink];
-    Link -->|Rescan Media File| Child[Child Radarr / Sonarr];
+    Media -->|Contains Target Language| Link[Create Hardlink / Symlink & Add/Rescan on Child];
+    Link --> Child[Child Radarr / Sonarr];
     Media -->|Missing Target Language| CheckAuto{Auto-Search Enabled?};
-    CheckAuto -->|Yes| Search[Trigger Indexer Search on Child];
-    CheckAuto -->|No| NoOp[Track as Monitored & Skip Search / No-Op];
+    CheckAuto -->|Yes| Search[Add/Monitor & Trigger Indexer Search on Child];
+    CheckAuto -->|No| NoOp[Skip / Do Not Add to Child];
     Search --> Child;
-    NoOp --> Child;
 ```
 
 1. **Import / Scan**: When a movie or episode is imported in the Main instance (via webhook) or discovered during a library scan, Polyarr inspects the file using MediaInfo to detect all embedded audio tracks.
-2. **Target Audio Present (Hardlink)**: If the file contains the Child instance's target audio language, Polyarr instantly creates a zero-space hardlink (or symlink) at the Child's path and commands the Child instance to rescan the media.
+2. **Target Audio Present (Hardlink)**: If the file contains the Child instance's target audio language, Polyarr ensures the media exists on the Child instance, instantly creates a zero-space hardlink (or symlink) at the Child's path, and commands the Child instance to rescan the media.
 3. **Target Audio Missing**:
-   - **Auto-Search ON**: Polyarr adds the item as monitored in the Child instance and triggers an automated search on indexers for a version containing the secondary language.
-   - **Auto-Search OFF**: Polyarr adds the item to the Child instance as monitored (so the library stays synchronized) but does **NOT** trigger any search commands. Missing audio items are cleanly skipped / no-op, allowing you to search manually or rely on standard RSS feeds.
+   - **Auto-Search ON**: Polyarr treats searching and monitoring on the child as the same concept — it adds/monitors the item on the Child instance and triggers an automated search on indexers for a release containing the secondary language.
+   - **Auto-Search OFF**: Polyarr completely skips missing-language media. It will **never** add, monitor, or touch the item on the Child instance (hardlinking existing multi-audio files only).
 
 ---
 
@@ -54,8 +53,8 @@ Click the **Dry Run** button (🔍) next to any profile in **Settings** or **Syn
 - **🔵 Already Linked**: Verified hardlinks that are already intact on disk.
 - **🟣 Secondary Has Own Copy**: Items where the secondary instance already downloaded its own separate release.
 - **🟡 Needs Download**: Media items where the main file lacks the target language audio:
-  - If **Auto-Search** is `ON`: Polyarr will trigger an indexer search on the secondary instance.
-  - If **Auto-Search** is `OFF`: Polyarr will track the item as monitored without searching indexers (no-op).
+  - If **Auto-Search** is `ON`: Polyarr will add/monitor the item and trigger an indexer search on the secondary instance.
+  - If **Auto-Search** is `OFF`: Polyarr will completely skip the item (no-op; child instance is untouched).
 - **🔴 Errors**: Reports only legitimate API timeouts, lookup failures, or filesystem permission errors (missing audio files are never treated as errors).
 
 ---
@@ -67,11 +66,14 @@ When creating or editing a Sync Profile in the **Settings** or **Sync Profiles**
 - **Link Strategy**:
   - `Hardlink` (Default): Uses 0 additional disk space by creating a hardlink on the same filesystem.
   - `Symlink`: Creates a symbolic link pointing to the main file.
-- **Delay Before Child Search (Hours)**: How many hours to wait before searching the child instance if the target audio is missing.
+- **Delay Before Child Search (Hours)**:
+  - How many hours to wait before commanding the child instance to search indexers for a separate release.
+  - **Why this delay exists**: Gives your primary instance sufficient time to grab, download, and import its release first (which may already include the target audio track).
+  - **Immediate hardlinking**: If the primary release already contains the target audio track, Polyarr hardlinks it **immediately with zero delay**. The wait delay only applies before initiating a fallback search on the secondary instance when the target audio is missing.
 - **Enable Active Scanning & Syncing**: Toggle whether this profile participates in automated background syncs, library scans, and incoming webhook imports.
 - **Auto-Search Missing Audio**:
-  - `ON`: Triggers an automated search on child indexers if the main file lacks the target audio.
-  - `OFF`: Missing audio items are ignored (no-op for linking and searching). Only files that already contain the target audio track are hardlinked.
+  - `ON`: Adds/monitors missing-language media on child instance and triggers indexer searches for the target audio.
+  - `OFF`: Polyarr never adds or monitors missing-language media on the child instance. Polyarr strictly creates hardlinks for media that already contains the target language audio.
 - **Sync Monitored Seasons (Sonarr Only)**:
   - Dynamically displayed only when syncing Sonarr instances (hidden for Radarr as movies do not have seasons).
   - Keeps season monitored/unmonitored flags synchronized between your primary and secondary Sonarr instances.

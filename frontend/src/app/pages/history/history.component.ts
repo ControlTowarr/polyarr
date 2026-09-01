@@ -377,8 +377,13 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
             />
           </div>
 
+          <!-- Loading State Inside Modal -->
+          <div *ngIf="isModalLoading" class="loading-center">
+            <span class="spinner spinner-lg"></span>
+          </div>
+
           <!-- Categorized Collapsible Details Sections -->
-          <div class="dry-run-sections">
+          <div class="dry-run-sections" *ngIf="!isModalLoading">
             
             <!-- SECTION 1: Hardlinked / Would Link Items -->
             <details class="details-section" [open]="filteredLinked.length > 0">
@@ -577,6 +582,7 @@ export class HistoryComponent implements OnInit, OnDestroy {
 
   // Inspection Modal
   showRunModal = false;
+  isModalLoading = false;
   selectedRunDetail: SyncRunDetail | null = null;
   modalSearchQuery = '';
 
@@ -774,38 +780,42 @@ export class HistoryComponent implements OnInit, OnDestroy {
 
   openRunDetail(run: SyncRun) {
     this.modalSearchQuery = '';
+    this.isModalLoading = true;
+    // Instantly initialize with available run summary so modal appears with zero delay
+    this.selectedRunDetail = {
+      run,
+      items: [],
+      summary: {
+        totalScanned: run.totalScanned,
+        linkedCount: run.linkedCount,
+        alreadyLinkedCount: run.alreadyLinkedCount,
+        searchTriggeredCount: run.searchTriggeredCount,
+        alreadyExistsChildCount: run.alreadyExistsChildCount,
+        skippedCount: run.skippedCount,
+        errorCount: run.errorCount,
+        durationMs: run.durationMs,
+      },
+      categorized: {
+        linked: [],
+        alreadyLinked: [],
+        searchTriggered: [],
+        alreadyExistsChild: [],
+        added: [],
+        seasonMonitored: [],
+        errors: [],
+      },
+    };
+    this.showRunModal = true;
+    this.cdr.detectChanges();
+
     this.api.getSyncRunDetail(run.id).subscribe({
       next: (detail: SyncRunDetail) => {
         this.selectedRunDetail = detail;
-        this.showRunModal = true;
+        this.isModalLoading = false;
         this.cdr.detectChanges();
       },
       error: () => {
-        // Fallback detail if endpoint fails
-        this.selectedRunDetail = {
-          run,
-          items: [],
-          summary: {
-            totalScanned: run.totalScanned,
-            linkedCount: run.linkedCount,
-            alreadyLinkedCount: run.alreadyLinkedCount,
-            searchTriggeredCount: run.searchTriggeredCount,
-            alreadyExistsChildCount: run.alreadyExistsChildCount,
-            skippedCount: run.skippedCount,
-            errorCount: run.errorCount,
-            durationMs: run.durationMs,
-          },
-          categorized: {
-            linked: [],
-            alreadyLinked: [],
-            searchTriggered: [],
-            alreadyExistsChild: [],
-            added: [],
-            seasonMonitored: [],
-            errors: [],
-          },
-        };
-        this.showRunModal = true;
+        this.isModalLoading = false;
         this.cdr.detectChanges();
       },
     });
@@ -813,6 +823,7 @@ export class HistoryComponent implements OnInit, OnDestroy {
 
   closeRunModal() {
     this.showRunModal = false;
+    this.isModalLoading = false;
     this.selectedRunDetail = null;
     this.modalSearchQuery = '';
   }

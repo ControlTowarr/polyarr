@@ -51,8 +51,11 @@ import { SyncProfile, Instance, DryRunReport, DryRunItem } from '../../core/mode
       </div>
 
       <div class="form-group">
-        <label class="form-label">Delay Before Search (Hours)</label>
+        <label class="form-label">Delay Before Child Search (Hours)</label>
         <input class="form-input" type="number" [(ngModel)]="currentProfile.delayHours" min="0" max="720" />
+        <p class="form-hint">
+          Hours to wait before triggering a fallback search on the child instance. Gives the parent instance time to download and import its multi-audio file first. If multi-audio is detected, it is hardlinked immediately with zero delay.
+        </p>
       </div>
 
       <!-- Consistent Modern Switch Rows -->

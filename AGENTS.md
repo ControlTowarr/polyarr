@@ -23,6 +23,10 @@
 - **Resilient File Resolution**:
   - Radarr/Sonarr list APIs (e.g. `GET /movie`) may omit full nested `movieFile` objects.
   - Always implement fallback queries (e.g. `getMovieFiles(movieId)`) so media items with files on disk are never silently skipped during scans, syncs, or dry runs.
+- **Auto-Search & Child Instance Monitoring**:
+  - In Polyarr, **searching and monitoring on the child instance are treated as the exact same concept**.
+  - When **Auto-Search Missing Audio (`searchIfMissing`) is OFF**: Polyarr MUST NEVER add, monitor, or modify missing-language media on the child instance. Polyarr ONLY creates zero-space hardlinks for files that already contain the target language audio track.
+  - When **Auto-Search Missing Audio (`searchIfMissing`) is ON**: Polyarr adds/monitors the missing-language media on the child instance AND commands an indexer search.
 - **Categorization**:
   - **Hardlink**: Main file contains the target language audio -> zero space link created on child.
   - **Needs Download**: Main file lacks the target language audio -> child instance must search indexers and download a separate file.

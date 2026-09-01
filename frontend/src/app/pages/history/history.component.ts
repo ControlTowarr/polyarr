@@ -92,7 +92,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                 <th>Results Summary</th>
                 <th>Status</th>
                 <th>Duration</th>
-                <th class="text-right">Action</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -100,7 +100,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                 <td class="text-primary-semibold text-nowrap">
                   {{ formatDate(run.createdAt) }}
                 </td>
-                <td>
+                <td class="text-nowrap">
                   <div class="flex-row-gap-sm">
                     <span class="badge badge-radarr" *ngIf="run.syncProfile?.mainInstance?.type === 'radarr'">RADARR</span>
                     <span class="badge badge-sonarr" *ngIf="run.syncProfile?.mainInstance?.type === 'sonarr'">SONARR</span>
@@ -109,7 +109,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                     </strong>
                   </div>
                 </td>
-                <td>
+                <td class="text-nowrap">
                   <span class="badge" [ngClass]="{
                     'badge-info': run.triggerType === 'manual',
                     'badge-muted': run.triggerType === 'scheduled',
@@ -138,7 +138,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                     </span>
                   </div>
                 </td>
-                <td>
+                <td class="text-nowrap">
                   <span class="badge" [ngClass]="{
                     'badge-success': run.status === 'completed',
                     'badge-warning': run.status === 'partial',
@@ -158,10 +158,8 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                     {{ formatDuration(getRunDuration(run)) }}
                   </span>
                 </td>
-                <td class="text-right" (click)="$event.stopPropagation()">
-                  <button class="btn btn-secondary btn-sm" (click)="openRunDetail(run)">
-                    🔍 Inspect
-                  </button>
+                <td class="text-right">
+                  <span class="row-chevron">›</span>
                 </td>
               </tr>
             </tbody>
@@ -275,7 +273,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
             <div class="dry-run-header-title">
               <span class="dry-run-header-icon">{{ selectedRunDetail.run.triggerType === 'dry_run' ? '🧪' : '⚡' }}</span>
               <h2 class="dry-run-header-h2">
-                {{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Dry Run Simulation Analysis' : 'Sync Event Audit & Inspection' }}
+                {{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Dry Run Simulation Analysis' : 'Sync Event Details & Audit' }}
               </h2>
               <span class="badge" [ngClass]="{
                 'badge-success': selectedRunDetail.run.status === 'completed',

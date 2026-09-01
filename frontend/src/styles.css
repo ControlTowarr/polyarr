@@ -256,6 +256,8 @@ a:hover {
   cursor: pointer;
   transition: all var(--transition-fast);
   user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .filter-pill:hover {
@@ -360,6 +362,8 @@ input:checked + .switch-slider:before {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badge-success {
@@ -1523,14 +1527,34 @@ input:checked + .switch-slider:before {
 .text-title-bold { font-weight: 600; }
 .text-detail-secondary { font-size: 0.85rem; color: var(--text-secondary); max-width: 400px; word-break: break-word; }
 .text-time-muted { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
-.flex-row-gap-sm { display: flex; align-items: center; gap: 6px; }
+.flex-row-gap-sm { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .flex-row-wrap-sm { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.profile-title-text { font-size: 0.9rem; color: var(--text-primary); }
-.badge-count-hint { font-size: 0.8rem; color: var(--text-muted); }
+.profile-title-text { font-size: 0.9rem; color: var(--text-primary); white-space: nowrap; }
+.badge-count-hint { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
 .badge-log-tag { font-size: 0.65rem; padding: 2px 5px; }
 .duration-text { font-size: 0.85rem; color: var(--text-muted); white-space: nowrap; }
 .duration-running { color: #60a5fa; font-weight: 500; font-size: 0.85rem; white-space: nowrap; }
-.table-row-clickable { cursor: pointer; }
+.table-row-clickable { 
+  cursor: pointer; 
+  transition: background-color 0.15s ease;
+}
+.table-row-clickable:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+.row-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: transform 0.2s ease, color 0.2s ease;
+  padding-right: 4px;
+}
+.table-row-clickable:hover .row-chevron {
+  color: var(--accent-primary);
+  transform: translateX(3px);
+}
 .search-bar-container { margin: var(--space-md) 0 var(--space-sm) 0; }
 .logs-section-content { max-height: 320px; }
 

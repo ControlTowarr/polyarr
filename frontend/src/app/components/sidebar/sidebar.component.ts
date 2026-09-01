@@ -10,16 +10,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
     <aside class="sidebar" [class.open]="isOpen">
       <a class="sidebar-header" routerLink="/dashboard" style="text-decoration:none;cursor:pointer;display:flex;align-items:center;">
         <div class="sidebar-logo-icon" style="margin-right:var(--space-md);flex-shrink:0;">
-          <svg width="32" height="32" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="8" fill="url(#poly-grad)"/>
-            <path d="M7 14h14M14 7v14M9 9l10 10M19 9l-10 10" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
-            <defs>
-              <linearGradient id="poly-grad" x1="0" y1="0" x2="28" y2="28">
-                <stop stop-color="#3ecbf0"/>
-                <stop offset="1" stop-color="#a78bfa"/>
-              </linearGradient>
-            </defs>
-          </svg>
+          <img src="logo.png" alt="Polyarr Logo" style="width:32px;height:32px;border-radius:8px;object-fit:cover;box-shadow:0 0 12px rgba(62,203,240,0.25);" />
         </div>
         <span class="sidebar-logo">Polyarr</span>
       </a>

@@ -23,16 +23,7 @@ interface SetupStep {
       <!-- Header -->
       <div style="text-align:center;margin-bottom:var(--space-2xl);">
         <div style="margin-bottom:var(--space-md);display:inline-block;">
-          <svg width="60" height="60" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="8" fill="url(#setup-grad)"/>
-            <path d="M7 14h14M14 7v14M9 9l10 10M19 9l-10 10" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
-            <defs>
-              <linearGradient id="setup-grad" x1="0" y1="0" x2="28" y2="28">
-                <stop stop-color="#3ecbf0"/>
-                <stop offset="1" stop-color="#a78bfa"/>
-              </linearGradient>
-            </defs>
-          </svg>
+          <img src="logo.png" alt="Polyarr Logo" style="width:72px;height:72px;border-radius:18px;object-fit:cover;box-shadow:0 0 24px rgba(62,203,240,0.35);" />
         </div>
         <h1 class="page-title" style="font-size:2.2rem;">Welcome to Polyarr</h1>
         <p class="page-subtitle" style="max-width:520px;margin:auto;">

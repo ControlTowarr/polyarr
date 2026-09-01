@@ -1,6 +1,7 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { Title } from '@angular/platform-browser';
 import { ApiService } from '../../core/services/api.service';
 import { MediaItemDetail } from '../../core/models';
 
@@ -133,7 +134,8 @@ export class MediaDetailComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private api: ApiService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private titleService: Title
   ) {}
 
   ngOnInit() {
@@ -146,6 +148,10 @@ export class MediaDetailComponent implements OnInit {
           next: (media) => {
             this.media = media;
             this.isLoading = false;
+            if (media?.title) {
+              const yearPart = media.year ? ` (${media.year})` : '';
+              this.titleService.setTitle(`${media.title}${yearPart} - Polyarr`);
+            }
             this.cdr.detectChanges();
           },
           error: () => {

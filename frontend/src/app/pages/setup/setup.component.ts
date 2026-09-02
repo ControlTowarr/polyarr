@@ -6,6 +6,7 @@ import { ApiService } from '../../core/services/api.service';
 import { Instance, SyncProfile } from '../../core/models';
 import { InstanceFormComponent } from '../../components/instance-form/instance-form.component';
 import { PathBrowserComponent } from '../../components/path-browser/path-browser.component';
+import { InstanceSelectComponent } from '../../components/instance-select/instance-select.component';
 
 interface SetupStep {
   id: string;
@@ -17,7 +18,7 @@ interface SetupStep {
 @Component({
   selector: 'app-setup',
   standalone: true,
-  imports: [CommonModule, FormsModule, InstanceFormComponent, PathBrowserComponent],
+  imports: [CommonModule, FormsModule, InstanceFormComponent, PathBrowserComponent, InstanceSelectComponent],
   template: `
     <div class="setup-container">
       <!-- Header -->
@@ -157,19 +158,23 @@ interface SetupStep {
               <span class="badge badge-info">Auto-Linked</span>
             </div>
           } @else {
-            <div class="form-group">
-              <label class="form-label">Main Instance (Source)</label>
-              <select class="form-select" [(ngModel)]="newProfile.mainInstanceId">
-                <option *ngFor="let inst of mainInstances" [value]="inst.id">{{ inst.name }} ({{ inst.type | titlecase }})</option>
-              </select>
-            </div>
+            <app-instance-select
+              label="Source (Main Instance)"
+              [instances]="mainInstances"
+              [selectedId]="newProfile.mainInstanceId"
+              (selectedIdChange)="onMainInstanceChange($event)"
+              placeholder="Select main source instance..."
+              emptyMessage="No main instances configured"
+            ></app-instance-select>
 
-            <div class="form-group">
-              <label class="form-label">Child Instance (Target)</label>
-              <select class="form-select" [(ngModel)]="newProfile.childInstanceId">
-                <option *ngFor="let inst of childInstances" [value]="inst.id">{{ inst.name }} ({{ (inst.language || 'en') | uppercase }})</option>
-              </select>
-            </div>
+            <app-instance-select
+              label="Target (Child Instance)"
+              [instances]="filteredChildInstances"
+              [selectedId]="newProfile.childInstanceId"
+              (selectedIdChange)="newProfile.childInstanceId = $event"
+              placeholder="Select child target instance..."
+              [emptyMessage]="'No matching ' + (isSonarrProfile() ? 'Sonarr' : 'Radarr') + ' child instances found'"
+            ></app-instance-select>
           }
 
           <div class="form-group">
@@ -299,10 +304,12 @@ export class SetupComponent implements OnInit {
       next: (instances) => {
         this.instances = instances || [];
         if (this.mainInstances.length > 0 && !this.newProfile.mainInstanceId) {
-          this.newProfile.mainInstanceId = this.mainInstances[0].id;
-        }
-        if (this.childInstances.length > 0 && !this.newProfile.childInstanceId) {
-          this.newProfile.childInstanceId = this.childInstances[0].id;
+          const main = this.mainInstances[0];
+          this.newProfile.mainInstanceId = main.id;
+          const matchingChildren = this.childInstances.filter(c => c.type === main.type);
+          if (matchingChildren.length > 0) {
+            this.newProfile.childInstanceId = matchingChildren[0].id;
+          }
         }
         this.cdr.detectChanges();
       },
@@ -315,6 +322,25 @@ export class SetupComponent implements OnInit {
 
   get childInstances(): Instance[] {
     return this.instances.filter(i => !i.isMain);
+  }
+
+  get filteredChildInstances(): Instance[] {
+    const selectedMain = this.instances.find(i => i.id === Number(this.newProfile.mainInstanceId));
+    if (!selectedMain) return this.childInstances;
+    return this.childInstances.filter(c => c.type === selectedMain.type);
+  }
+
+  onMainInstanceChange(mainId: number) {
+    this.newProfile.mainInstanceId = mainId;
+    const selectedMain = this.instances.find(i => i.id === Number(mainId));
+    if (selectedMain) {
+      const validChildren = this.childInstances.filter(c => c.type === selectedMain.type);
+      const currentChildValid = validChildren.some(c => c.id === Number(this.newProfile.childInstanceId));
+      if (!currentChildValid) {
+        this.newProfile.childInstanceId = validChildren[0]?.id;
+      }
+    }
+    this.cdr.detectChanges();
   }
 
   isSonarrProfile(): boolean {

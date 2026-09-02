@@ -6,11 +6,12 @@ import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { SyncProfile, Instance, DryRunReport, DryRunItem } from '../../core/models';
 import { PathBrowserComponent } from '../../components/path-browser/path-browser.component';
+import { InstanceSelectComponent } from '../../components/instance-select/instance-select.component';
 
 @Component({
   selector: 'app-sync-profiles',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, PathBrowserComponent],
+  imports: [CommonModule, RouterModule, FormsModule, PathBrowserComponent, InstanceSelectComponent],
   template: `
     <div class="page-header">
       <div>
@@ -29,19 +30,23 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
         <button class="btn btn-ghost btn-sm" (click)="cancelForm()">✕</button>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">Source (Main Instance)</label>
-        <select class="form-select" [(ngModel)]="currentProfile.mainInstanceId">
-          <option *ngFor="let inst of mainInstances" [value]="inst.id">{{ inst.name }} ({{ inst.type | titlecase }})</option>
-        </select>
-      </div>
+      <app-instance-select
+        label="Source (Main Instance)"
+        [instances]="mainInstances"
+        [selectedId]="currentProfile.mainInstanceId"
+        (selectedIdChange)="onMainInstanceChange($event)"
+        placeholder="Select main source instance..."
+        emptyMessage="No main instances configured"
+      ></app-instance-select>
 
-      <div class="form-group">
-        <label class="form-label">Target (Child Instance)</label>
-        <select class="form-select" [(ngModel)]="currentProfile.childInstanceId">
-          <option *ngFor="let inst of childInstances" [value]="inst.id">{{ inst.name }} ({{ (inst.language || 'en') | uppercase }})</option>
-        </select>
-      </div>
+      <app-instance-select
+        label="Target (Child Instance)"
+        [instances]="filteredChildInstances"
+        [selectedId]="currentProfile.childInstanceId"
+        (selectedIdChange)="currentProfile.childInstanceId = $event"
+        placeholder="Select child target instance..."
+        [emptyMessage]="'No matching ' + (isSonarrProfile() ? 'Sonarr' : 'Radarr') + ' child instances found'"
+      ></app-instance-select>
 
       <div class="form-group">
         <label class="form-label">Linking Method</label>
@@ -628,6 +633,25 @@ export class SyncProfilesComponent implements OnInit {
     return this.instances.filter(i => !i.isMain);
   }
 
+  get filteredChildInstances(): Instance[] {
+    const selectedMain = this.instances.find(i => i.id === Number(this.currentProfile.mainInstanceId));
+    if (!selectedMain) return this.childInstances;
+    return this.childInstances.filter(c => c.type === selectedMain.type);
+  }
+
+  onMainInstanceChange(mainId: number) {
+    this.currentProfile.mainInstanceId = mainId;
+    const selectedMain = this.instances.find(i => i.id === Number(mainId));
+    if (selectedMain) {
+      const validChildren = this.childInstances.filter(c => c.type === selectedMain.type);
+      const currentChildValid = validChildren.some(c => c.id === Number(this.currentProfile.childInstanceId));
+      if (!currentChildValid) {
+        this.currentProfile.childInstanceId = validChildren[0]?.id;
+      }
+    }
+    this.cdr.detectChanges();
+  }
+
   isSonarrProfile(): boolean {
     const main = this.instances.find(i => i.id === Number(this.currentProfile.mainInstanceId));
     return main?.type === 'sonarr';
@@ -636,9 +660,14 @@ export class SyncProfilesComponent implements OnInit {
   openAddProfile() {
     this.editingProfileId = null;
     this.showPathOverrides = false;
+    const initialMain = this.mainInstances[0];
+    const initialChildren = initialMain 
+      ? this.childInstances.filter(c => c.type === initialMain.type)
+      : this.childInstances;
+
     this.currentProfile = {
-      mainInstanceId: this.mainInstances[0]?.id,
-      childInstanceId: this.childInstances[0]?.id,
+      mainInstanceId: initialMain?.id,
+      childInstanceId: initialChildren[0]?.id,
       enabled: true,
       linkType: 'hardlink',
       delayHours: 48,

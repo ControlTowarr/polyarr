@@ -1821,4 +1821,79 @@ input:checked + .switch-slider:before {
 .search-bar-container { margin: var(--space-md) 0 var(--space-sm) 0; }
 .logs-section-content { max-height: 320px; }
 
+/* ── Instance Select Custom Dropdown ── */
+.instance-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.instance-select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  min-height: 44px;
+}
+
+.instance-select-trigger:focus,
+.instance-select-wrapper.open .instance-select-trigger {
+  border-color: var(--accent-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-primary-muted);
+}
+
+.instance-select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: var(--space-xs);
+}
+
+.instance-select-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.instance-select-option:hover {
+  background-color: var(--bg-card-hover);
+}
+
+.instance-select-option.selected {
+  background-color: var(--accent-primary-muted);
+}
+
+.instance-select-empty {
+  padding: var(--space-md);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.dropdown-chevron {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-left: var(--space-sm);
+  user-select: none;
+}
+
+
 

@@ -405,6 +405,11 @@ input:checked + .switch-slider:before {
   background: rgba(21, 92, 110, 0.5);
   color: #3ecbf0;
 }
+.badge-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
 
 .badge-vibrant {
   backdrop-filter: blur(4px);
@@ -1036,9 +1041,20 @@ input:checked + .switch-slider:before {
 /* Stat Cards Grid */
 .dry-run-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-md);
-  margin-bottom: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+@media (max-width: 900px) {
+  .dry-run-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 500px) {
+  .dry-run-stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stat-card {
@@ -1156,13 +1172,43 @@ input:checked + .switch-slider:before {
   color: var(--color-danger);
 }
 
+/* Slim Status & Errors Bar */
+.dry-run-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.dry-run-status-bar.has-errors {
+  background: var(--color-danger-muted);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.status-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-divider {
+  color: var(--text-muted);
+  margin: 0 4px;
+}
+
 /* Filter Bar */
 .filter-bar {
   display: flex;
   align-items: center;
   gap: var(--space-md);
   margin-bottom: var(--space-lg);
-  margin-top: var(--space-md);
+  margin-top: var(--space-xs);
 }
 .filter-input-wrap {
   position: relative;
@@ -1206,7 +1252,6 @@ input:checked + .switch-slider:before {
   padding: var(--space-md) var(--space-lg);
   cursor: pointer;
   user-select: none;
-  list-style: none;
   background: var(--bg-surface);
   transition: background var(--transition-fast);
 }
@@ -1214,13 +1259,14 @@ input:checked + .switch-slider:before {
   display: none;
 }
 .report-summary:hover {
-  background: var(--bg-card);
+  background: var(--bg-card-hover);
 }
 
 .summary-left {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-md);
+  flex-wrap: wrap;
 }
 
 .section-icon {
@@ -1243,7 +1289,7 @@ input:checked + .switch-slider:before {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  max-height: 380px;
+  max-height: 480px;
   overflow-y: auto;
 }
 
@@ -1257,6 +1303,7 @@ input:checked + .switch-slider:before {
 
 /* Item Row Card */
 .item-row {
+  flex-shrink: 0;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -1330,6 +1377,111 @@ input:checked + .switch-slider:before {
 .item-reason {
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+/* ── Show & Season Grouping Styles in Dry Run Report ── */
+.view-mode-toggle {
+  display: inline-flex;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.view-mode-btn {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.view-mode-btn:hover {
+  color: var(--text-primary);
+}
+
+.view-mode-btn.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.show-group-card {
+  flex-shrink: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: var(--space-xs);
+  transition: border-color var(--transition-fast);
+}
+
+.show-group-card:hover {
+  border-color: var(--border-default);
+}
+
+.show-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  background: var(--bg-surface);
+  user-select: none;
+  min-height: 48px;
+}
+
+.show-group-header:hover {
+  background: var(--bg-card-hover);
+}
+
+.show-group-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.show-group-content {
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.season-group-block {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.season-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.season-episodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.stat-sub-highlight {
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 2px;
 }
 
 /* Typography & General Utilities */

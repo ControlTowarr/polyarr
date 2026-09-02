@@ -349,7 +349,7 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
         <!-- Modal Body Scrollable -->
         <div class="dry-run-body">
           
-          <!-- Summary Metrics Cards Grid -->
+          <!-- Summary Metrics Cards Grid (4 Media Categories) -->
           <div class="dry-run-stats-grid">
             
             <!-- 1. Ready to Hardlink -->
@@ -358,6 +358,7 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
               <div class="stat-content">
                 <div class="stat-number stat-num-would-link">{{ dryRunReport.summary.wouldLinkCount }}</div>
                 <div class="stat-label">Ready to Hardlink</div>
+                <div class="stat-sub stat-sub-highlight" *ngIf="isEpisodeReport() && dryRunReport.wouldLink.length">{{ getBreakdownText(dryRunReport.wouldLink) }}</div>
                 <div class="stat-sub">Has target audio; instant / 0 space</div>
               </div>
             </div>
@@ -368,6 +369,7 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
               <div class="stat-content">
                 <div class="stat-number stat-num-needs-download">{{ dryRunReport.summary.needsDownloadCount }}</div>
                 <div class="stat-label">Needs Download</div>
+                <div class="stat-sub stat-sub-highlight" *ngIf="isEpisodeReport() && dryRunReport.needsDownload.length">{{ getBreakdownText(dryRunReport.needsDownload) }}</div>
                 <div class="stat-sub">Lacks target audio; secondary downloads</div>
               </div>
             </div>
@@ -378,6 +380,7 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
               <div class="stat-content">
                 <div class="stat-number stat-num-already-linked">{{ dryRunReport.summary.alreadyLinkedCount }}</div>
                 <div class="stat-label">Already Hardlinked</div>
+                <div class="stat-sub stat-sub-highlight" *ngIf="isEpisodeReport() && dryRunReport.alreadyLinked.length">{{ getBreakdownText(dryRunReport.alreadyLinked) }}</div>
                 <div class="stat-sub">Link verified on disk</div>
               </div>
             </div>
@@ -388,25 +391,27 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
               <div class="stat-content">
                 <div class="stat-number stat-num-already-exists">{{ dryRunReport.summary.alreadyExistsChildCount }}</div>
                 <div class="stat-label">Already on Secondary</div>
+                <div class="stat-sub stat-sub-highlight" *ngIf="isEpisodeReport() && dryRunReport.alreadyExistsChild.length">{{ getBreakdownText(dryRunReport.alreadyExistsChild) }}</div>
                 <div class="stat-sub">Secondary has its own copy</div>
-              </div>
-            </div>
-
-            <!-- 5. Real Errors Only -->
-            <div class="stat-card stat-card-error" [class.has-errors]="dryRunReport.summary.errorCount > 0">
-              <div class="stat-icon stat-icon-error">⚠️</div>
-              <div class="stat-content">
-                <div class="stat-number stat-num-error">
-                  {{ dryRunReport.summary.errorCount }}
-                </div>
-                <div class="stat-label">Errors</div>
-                <div class="stat-sub">Total scanned: {{ dryRunReport.summary.totalScanned }}</div>
               </div>
             </div>
           </div>
 
-          <!-- Report Search Filter Bar -->
-          <div class="filter-bar">
+          <!-- Slim Status & Errors Summary Bar -->
+          <div class="dry-run-status-bar" [class.has-errors]="dryRunReport.summary.errorCount > 0">
+            <div class="status-bar-item">
+              <span>📊 Total Scanned: <strong>{{ dryRunReport.summary.totalScanned.toLocaleString() }}</strong></span>
+              <span class="status-divider">•</span>
+              <span *ngIf="dryRunReport.summary.errorCount === 0" class="text-muted">✅ 0 Inspection Errors</span>
+              <span *ngIf="dryRunReport.summary.errorCount > 0" class="text-danger font-semibold">⚠️ {{ dryRunReport.summary.errorCount }} System / Inspection Errors</span>
+            </div>
+            <div class="status-bar-item text-xs text-muted" *ngIf="isEpisodeReport()">
+              <span>{{ isEpisodeReport() ? 'Grouped by TV Series & Season' : 'Movie Library' }}</span>
+            </div>
+          </div>
+
+          <!-- Report Search Filter Bar & View Toggle -->
+          <div class="filter-bar flex-between flex-wrap gap-sm">
             <div class="filter-input-wrap">
               <span class="filter-search-icon">🔍</span>
               <input 
@@ -416,6 +421,26 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
                 placeholder="Filter results in this report by title, path, or reason..."
               />
             </div>
+            
+            <div class="view-mode-toggle" *ngIf="isEpisodeReport()">
+              <button
+                type="button"
+                class="view-mode-btn"
+                [class.active]="reportViewMode === 'grouped'"
+                (click)="reportViewMode = 'grouped'"
+              >
+                📺 Group by Show
+              </button>
+              <button
+                type="button"
+                class="view-mode-btn"
+                [class.active]="reportViewMode === 'flat'"
+                (click)="reportViewMode = 'flat'"
+              >
+                📋 Flat List
+              </button>
+            </div>
+
             <button *ngIf="searchQuery" class="btn btn-ghost btn-sm" (click)="searchQuery = ''">
               Clear Filter
             </button>
@@ -432,7 +457,10 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
                 <div class="summary-left">
                   <span class="section-icon">🔗</span>
                   <span class="section-title">Items Ready to Hardlink (Has Target Audio)</span>
-                  <span class="badge badge-info">{{ filterList(dryRunReport.wouldLink).length }} items</span>
+                  <span class="badge badge-info">{{ filterList(dryRunReport.wouldLink).length }} {{ isEpisodeReport() ? 'Episodes' : 'Items' }}</span>
+                  <span class="badge badge-secondary" *ngIf="isEpisodeReport() && filterList(dryRunReport.wouldLink).length">
+                    {{ getShowsCount(filterList(dryRunReport.wouldLink)) }} Shows ({{ getSeasonsCount(filterList(dryRunReport.wouldLink)) }} Seasons)
+                  </span>
                 </div>
                 <span class="summary-hint">Main file contains {{ dryRunReport.targetLanguage | uppercase }} audio; will be hardlinked (zero extra space)</span>
               </summary>
@@ -442,33 +470,83 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
                   No items in this category{{ searchQuery ? ' matching your filter' : '' }}.
                 </div>
 
-                <div *ngFor="let item of filterList(dryRunReport.wouldLink)" class="item-row">
-                  <div class="item-header">
-                    <div class="item-title-group">
-                      <span class="item-title-text">
-                        {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
-                      </span>
-                      <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
-                        {{ item.mediaType | uppercase }}
-                      </span>
-                      <span *ngIf="item.languagesDetected && item.languagesDetected.length" class="badge badge-success">
-                        Audio: {{ item.languagesDetected.join(', ') | uppercase }}
-                      </span>
+                <!-- Grouped View -->
+                <ng-container *ngIf="isEpisodeReport() && reportViewMode === 'grouped'">
+                  <div *ngFor="let group of groupItemsByShow(filterList(dryRunReport.wouldLink))" class="show-group-card">
+                    <div class="show-group-header" (click)="toggleShowExpanded('wouldLink', group.showTitle)">
+                      <div class="flex-align-center gap-sm flex-wrap">
+                        <span class="show-group-title">{{ group.showTitle }}</span>
+                        <span *ngIf="group.year" class="item-year-text">({{ group.year }})</span>
+                        <span class="badge badge-sonarr">SERIES</span>
+                        <span class="badge badge-info">{{ group.totalEpisodes }} Ready to Link</span>
+                        <span class="badge badge-secondary">{{ group.seasons.length }} {{ group.seasons.length === 1 ? 'Season' : 'Seasons' }}</span>
+                      </div>
+                      <span class="dropdown-chevron">{{ isShowExpanded('wouldLink', group.showTitle) ? '▲' : '▼' }}</span>
                     </div>
-                    <span class="badge badge-info">Will Hardlink</span>
-                  </div>
 
-                  <div class="item-paths" *ngIf="item.sourcePath">
-                    <div class="path-line">
-                      <span class="path-tag">SOURCE:</span> <code>{{ item.sourcePath }}</code>
-                    </div>
-                    <div class="path-line" *ngIf="item.destinationPath">
-                      <span class="path-tag">TARGET:</span> <code>{{ item.destinationPath }}</code>
+                    <div class="show-group-content" *ngIf="isShowExpanded('wouldLink', group.showTitle)">
+                      <div *ngFor="let season of group.seasons" class="season-group-block">
+                        <div class="season-group-header">
+                          <span>Season {{ season.seasonNumber }}</span>
+                          <span class="badge badge-muted">{{ season.episodes.length }} Episodes</span>
+                        </div>
+                        <div class="season-episodes-list">
+                          <div *ngFor="let item of season.episodes" class="item-row">
+                            <div class="item-header">
+                              <div class="item-title-group">
+                                <span class="item-title-text">{{ item.title }}</span>
+                                <span *ngIf="item.languagesDetected && item.languagesDetected.length" class="badge badge-success">
+                                  Audio: {{ item.languagesDetected.join(', ') | uppercase }}
+                                </span>
+                              </div>
+                              <span class="badge badge-info">Will Hardlink</span>
+                            </div>
+                            <div class="item-paths" *ngIf="item.sourcePath">
+                              <div class="path-line">
+                                <span class="path-tag">SOURCE:</span> <code>{{ item.sourcePath }}</code>
+                              </div>
+                              <div class="path-line" *ngIf="item.destinationPath">
+                                <span class="path-tag">TARGET:</span> <code>{{ item.destinationPath }}</code>
+                              </div>
+                            </div>
+                            <div class="item-reason">{{ item.reason }}</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                </ng-container>
 
-                  <div class="item-reason">{{ item.reason }}</div>
-                </div>
+                <!-- Flat View -->
+                <ng-container *ngIf="!isEpisodeReport() || reportViewMode === 'flat'">
+                  <div *ngFor="let item of filterList(dryRunReport.wouldLink)" class="item-row">
+                    <div class="item-header">
+                      <div class="item-title-group">
+                        <span class="item-title-text">
+                          {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
+                        </span>
+                        <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
+                          {{ item.mediaType | uppercase }}
+                        </span>
+                        <span *ngIf="item.languagesDetected && item.languagesDetected.length" class="badge badge-success">
+                          Audio: {{ item.languagesDetected.join(', ') | uppercase }}
+                        </span>
+                      </div>
+                      <span class="badge badge-info">Will Hardlink</span>
+                    </div>
+
+                    <div class="item-paths" *ngIf="item.sourcePath">
+                      <div class="path-line">
+                        <span class="path-tag">SOURCE:</span> <code>{{ item.sourcePath }}</code>
+                      </div>
+                      <div class="path-line" *ngIf="item.destinationPath">
+                        <span class="path-tag">TARGET:</span> <code>{{ item.destinationPath }}</code>
+                      </div>
+                    </div>
+
+                    <div class="item-reason">{{ item.reason }}</div>
+                  </div>
+                </ng-container>
               </div>
             </details>
 
@@ -478,7 +556,10 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
                 <div class="summary-left">
                   <span class="section-icon">📥</span>
                   <span class="section-title">Items to Download Separately on Secondary (Missing Target Audio)</span>
-                  <span class="badge badge-warning">{{ filterList(dryRunReport.needsDownload).length }} items</span>
+                  <span class="badge badge-warning">{{ filterList(dryRunReport.needsDownload).length }} {{ isEpisodeReport() ? 'Episodes' : 'Items' }}</span>
+                  <span class="badge badge-secondary" *ngIf="isEpisodeReport() && filterList(dryRunReport.needsDownload).length">
+                    {{ getShowsCount(filterList(dryRunReport.needsDownload)) }} Shows ({{ getSeasonsCount(filterList(dryRunReport.needsDownload)) }} Seasons)
+                  </span>
                 </div>
                 <span class="summary-hint">Main file lacks {{ dryRunReport.targetLanguage | uppercase }} audio; secondary *arr will download its own copy</span>
               </summary>
@@ -488,26 +569,78 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
                   No items in this category{{ searchQuery ? ' matching your filter' : '' }}.
                 </div>
 
-                <div *ngFor="let item of filterList(dryRunReport.needsDownload)" class="item-row">
-                  <div class="item-header">
-                    <div class="item-title-group">
-                      <span class="item-title-text">
-                        {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
-                      </span>
-                      <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
-                        {{ item.mediaType | uppercase }}
+                <!-- Grouped View -->
+                <ng-container *ngIf="isEpisodeReport() && reportViewMode === 'grouped'">
+                  <div *ngFor="let group of groupItemsByShow(filterList(dryRunReport.needsDownload))" class="show-group-card">
+                    <div class="show-group-header" (click)="toggleShowExpanded('needsDownload', group.showTitle)">
+                      <div class="flex-align-center gap-sm flex-wrap">
+                        <span class="show-group-title">{{ group.showTitle }}</span>
+                        <span *ngIf="group.year" class="item-year-text">({{ group.year }})</span>
+                        <span class="badge badge-sonarr">SERIES</span>
+                        <span class="badge badge-warning">{{ group.totalEpisodes }} Missing</span>
+                        <span class="badge badge-secondary">{{ group.seasons.length }} {{ group.seasons.length === 1 ? 'Season' : 'Seasons' }}</span>
+                      </div>
+                      <span class="dropdown-chevron">{{ isShowExpanded('needsDownload', group.showTitle) ? '▲' : '▼' }}</span>
+                    </div>
+
+                    <div class="show-group-content" *ngIf="isShowExpanded('needsDownload', group.showTitle)">
+                      <div *ngFor="let season of group.seasons" class="season-group-block">
+                        <div class="season-group-header">
+                          <span>Season {{ season.seasonNumber }}</span>
+                          <span class="badge badge-muted">{{ season.episodes.length }} Episodes</span>
+                        </div>
+                        <div class="season-episodes-list">
+                          <div *ngFor="let item of season.episodes" class="item-row">
+                            <div class="item-header">
+                              <div class="item-title-group">
+                                <span class="item-title-text">{{ item.title }}</span>
+                                <span *ngIf="item.languagesDetected && item.languagesDetected.length" class="badge badge-success">
+                                  Audio: {{ item.languagesDetected.join(', ') | uppercase }}
+                                </span>
+                              </div>
+                              <span 
+                                class="badge" 
+                                [ngClass]="item.searchEnabled ? 'badge-warning' : 'badge-muted'"
+                              >
+                                {{ item.searchEnabled ? '🔍 Auto-Search On' : '⏸ Monitored (Auto-Search Off)' }}
+                              </span>
+                            </div>
+                            <div class="item-paths" *ngIf="item.sourcePath">
+                              <div class="path-line">
+                                <span class="path-tag">SOURCE:</span> <code>{{ item.sourcePath }}</code>
+                              </div>
+                            </div>
+                            <div class="item-reason">{{ item.reason }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </ng-container>
+
+                <!-- Flat View -->
+                <ng-container *ngIf="!isEpisodeReport() || reportViewMode === 'flat'">
+                  <div *ngFor="let item of filterList(dryRunReport.needsDownload)" class="item-row">
+                    <div class="item-header">
+                      <div class="item-title-group">
+                        <span class="item-title-text">
+                          {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
+                        </span>
+                        <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
+                          {{ item.mediaType | uppercase }}
+                        </span>
+                      </div>
+                      <span 
+                        class="badge" 
+                        [ngClass]="item.searchEnabled ? 'badge-warning' : 'badge-muted'"
+                      >
+                        {{ item.searchEnabled ? '🔍 Auto-Search On' : '⏸ Monitored (Auto-Search Off)' }}
                       </span>
                     </div>
-                    <span 
-                      class="badge" 
-                      [ngClass]="item.searchEnabled ? 'badge-warning' : 'badge-muted'"
-                    >
-                      {{ item.searchEnabled ? '🔍 Auto-Search On' : '⏸ Monitored (Auto-Search Off)' }}
-                    </span>
-                  </div>
 
-                  <div class="item-reason">{{ item.reason }}</div>
-                </div>
+                    <div class="item-reason">{{ item.reason }}</div>
+                  </div>
+                </ng-container>
               </div>
             </details>
 
@@ -517,7 +650,10 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
                 <div class="summary-left">
                   <span class="section-icon">✅</span>
                   <span class="section-title">Already Hardlinked on Disk (No Action Needed)</span>
-                  <span class="badge badge-muted">{{ filterList(dryRunReport.alreadyLinked).length }} items</span>
+                  <span class="badge badge-muted">{{ filterList(dryRunReport.alreadyLinked).length }} {{ isEpisodeReport() ? 'Episodes' : 'Items' }}</span>
+                  <span class="badge badge-secondary" *ngIf="isEpisodeReport() && filterList(dryRunReport.alreadyLinked).length">
+                    {{ getShowsCount(filterList(dryRunReport.alreadyLinked)) }} Shows ({{ getSeasonsCount(filterList(dryRunReport.alreadyLinked)) }} Seasons)
+                  </span>
                 </div>
                 <span class="summary-hint">Hardlink or symlink is already verified and intact at destination</span>
               </summary>
@@ -527,20 +663,62 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
                   No items in this category{{ searchQuery ? ' matching your filter' : '' }}.
                 </div>
 
-                <div *ngFor="let item of filterList(dryRunReport.alreadyLinked)" class="item-row">
-                  <div class="item-header">
-                    <span class="item-title-text">
-                      {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
-                    </span>
-                    <span class="badge badge-success">Already Linked</span>
-                  </div>
-                  <div class="item-paths" *ngIf="item.destinationPath">
-                    <div class="path-line">
-                      <span class="path-tag">LINK PATH:</span> <code>{{ item.destinationPath }}</code>
+                <!-- Grouped View -->
+                <ng-container *ngIf="isEpisodeReport() && reportViewMode === 'grouped'">
+                  <div *ngFor="let group of groupItemsByShow(filterList(dryRunReport.alreadyLinked))" class="show-group-card">
+                    <div class="show-group-header" (click)="toggleShowExpanded('alreadyLinked', group.showTitle)">
+                      <div class="flex-align-center gap-sm flex-wrap">
+                        <span class="show-group-title">{{ group.showTitle }}</span>
+                        <span *ngIf="group.year" class="item-year-text">({{ group.year }})</span>
+                        <span class="badge badge-sonarr">SERIES</span>
+                        <span class="badge badge-success">{{ group.totalEpisodes }} Linked</span>
+                        <span class="badge badge-secondary">{{ group.seasons.length }} {{ group.seasons.length === 1 ? 'Season' : 'Seasons' }}</span>
+                      </div>
+                      <span class="dropdown-chevron">{{ isShowExpanded('alreadyLinked', group.showTitle) ? '▲' : '▼' }}</span>
+                    </div>
+
+                    <div class="show-group-content" *ngIf="isShowExpanded('alreadyLinked', group.showTitle)">
+                      <div *ngFor="let season of group.seasons" class="season-group-block">
+                        <div class="season-group-header">
+                          <span>Season {{ season.seasonNumber }}</span>
+                          <span class="badge badge-muted">{{ season.episodes.length }} Episodes</span>
+                        </div>
+                        <div class="season-episodes-list">
+                          <div *ngFor="let item of season.episodes" class="item-row">
+                            <div class="item-header">
+                              <span class="item-title-text">{{ item.title }}</span>
+                              <span class="badge badge-success">Already Linked</span>
+                            </div>
+                            <div class="item-paths" *ngIf="item.destinationPath">
+                              <div class="path-line">
+                                <span class="path-tag">LINK PATH:</span> <code>{{ item.destinationPath }}</code>
+                              </div>
+                            </div>
+                            <div class="item-reason">{{ item.reason }}</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div class="item-reason">{{ item.reason }}</div>
-                </div>
+                </ng-container>
+
+                <!-- Flat View -->
+                <ng-container *ngIf="!isEpisodeReport() || reportViewMode === 'flat'">
+                  <div *ngFor="let item of filterList(dryRunReport.alreadyLinked)" class="item-row">
+                    <div class="item-header">
+                      <span class="item-title-text">
+                        {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
+                      </span>
+                      <span class="badge badge-success">Already Linked</span>
+                    </div>
+                    <div class="item-paths" *ngIf="item.destinationPath">
+                      <div class="path-line">
+                        <span class="path-tag">LINK PATH:</span> <code>{{ item.destinationPath }}</code>
+                      </div>
+                    </div>
+                    <div class="item-reason">{{ item.reason }}</div>
+                  </div>
+                </ng-container>
               </div>
             </details>
 
@@ -550,7 +728,10 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
                 <div class="summary-left">
                   <span class="section-icon">📁</span>
                   <span class="section-title">Already Downloaded by Secondary (No Link Needed)</span>
-                  <span class="badge badge-muted">{{ filterList(dryRunReport.alreadyExistsChild).length }} items</span>
+                  <span class="badge badge-muted">{{ filterList(dryRunReport.alreadyExistsChild).length }} {{ isEpisodeReport() ? 'Episodes' : 'Items' }}</span>
+                  <span class="badge badge-secondary" *ngIf="isEpisodeReport() && filterList(dryRunReport.alreadyExistsChild).length">
+                    {{ getShowsCount(filterList(dryRunReport.alreadyExistsChild)) }} Shows ({{ getSeasonsCount(filterList(dryRunReport.alreadyExistsChild)) }} Seasons)
+                  </span>
                 </div>
                 <span class="summary-hint">Secondary instance already possesses its own file; will not be overwritten</span>
               </summary>
@@ -560,15 +741,52 @@ import { InstanceSelectComponent } from '../../components/instance-select/instan
                   No items in this category{{ searchQuery ? ' matching your filter' : '' }}.
                 </div>
 
-                <div *ngFor="let item of filterList(dryRunReport.alreadyExistsChild)" class="item-row">
-                  <div class="item-header">
-                    <span class="item-title-text">
-                      {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
-                    </span>
-                    <span class="badge badge-muted">Independent Copy</span>
+                <!-- Grouped View -->
+                <ng-container *ngIf="isEpisodeReport() && reportViewMode === 'grouped'">
+                  <div *ngFor="let group of groupItemsByShow(filterList(dryRunReport.alreadyExistsChild))" class="show-group-card">
+                    <div class="show-group-header" (click)="toggleShowExpanded('alreadyExistsChild', group.showTitle)">
+                      <div class="flex-align-center gap-sm flex-wrap">
+                        <span class="show-group-title">{{ group.showTitle }}</span>
+                        <span *ngIf="group.year" class="item-year-text">({{ group.year }})</span>
+                        <span class="badge badge-sonarr">SERIES</span>
+                        <span class="badge badge-muted">{{ group.totalEpisodes }} Own Copy</span>
+                        <span class="badge badge-secondary">{{ group.seasons.length }} {{ group.seasons.length === 1 ? 'Season' : 'Seasons' }}</span>
+                      </div>
+                      <span class="dropdown-chevron">{{ isShowExpanded('alreadyExistsChild', group.showTitle) ? '▲' : '▼' }}</span>
+                    </div>
+
+                    <div class="show-group-content" *ngIf="isShowExpanded('alreadyExistsChild', group.showTitle)">
+                      <div *ngFor="let season of group.seasons" class="season-group-block">
+                        <div class="season-group-header">
+                          <span>Season {{ season.seasonNumber }}</span>
+                          <span class="badge badge-muted">{{ season.episodes.length }} Episodes</span>
+                        </div>
+                        <div class="season-episodes-list">
+                          <div *ngFor="let item of season.episodes" class="item-row">
+                            <div class="item-header">
+                              <span class="item-title-text">{{ item.title }}</span>
+                              <span class="badge badge-muted">Independent Copy</span>
+                            </div>
+                            <div class="item-reason">{{ item.reason }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div class="item-reason">{{ item.reason }}</div>
-                </div>
+                </ng-container>
+
+                <!-- Flat View -->
+                <ng-container *ngIf="!isEpisodeReport() || reportViewMode === 'flat'">
+                  <div *ngFor="let item of filterList(dryRunReport.alreadyExistsChild)" class="item-row">
+                    <div class="item-header">
+                      <span class="item-title-text">
+                        {{ item.title }} <span *ngIf="item.year" class="item-year-text">({{ item.year }})</span>
+                      </span>
+                      <span class="badge badge-muted">Independent Copy</span>
+                    </div>
+                    <div class="item-reason">{{ item.reason }}</div>
+                  </div>
+                </ng-container>
               </div>
             </details>
 
@@ -680,6 +898,8 @@ export class SettingsComponent implements OnInit {
   dryRunReport: DryRunReport | null = null;
   showDryRunModal = false;
   searchQuery = '';
+  reportViewMode: 'grouped' | 'flat' = 'grouped';
+  expandedShows = new Set<string>();
 
   // Paused profile sync confirmation state
   showSyncConfirmModal = false;
@@ -1096,10 +1316,152 @@ export class SettingsComponent implements OnInit {
     const q = this.searchQuery.toLowerCase().trim();
     return items.filter(i =>
       i.title.toLowerCase().includes(q) ||
+      (i.seriesTitle && i.seriesTitle.toLowerCase().includes(q)) ||
       (i.sourcePath && i.sourcePath.toLowerCase().includes(q)) ||
       (i.destinationPath && i.destinationPath.toLowerCase().includes(q)) ||
       (i.reason && i.reason.toLowerCase().includes(q))
     );
+  }
+
+  isEpisodeReport(): boolean {
+    if (!this.dryRunReport) return false;
+    return (
+      this.dryRunReport.wouldLink.some(i => i.mediaType === 'episode') ||
+      this.dryRunReport.needsDownload.some(i => i.mediaType === 'episode') ||
+      this.dryRunReport.alreadyLinked.some(i => i.mediaType === 'episode') ||
+      this.dryRunReport.alreadyExistsChild.some(i => i.mediaType === 'episode')
+    );
+  }
+
+  getBreakdownText(items?: DryRunItem[]): string {
+    if (!items || items.length === 0) return '';
+    const isEpisode = items.some(i => i.mediaType === 'episode');
+    if (!isEpisode) {
+      return `${items.length} ${items.length === 1 ? 'movie' : 'movies'}`;
+    }
+
+    const shows = new Set<string>();
+    const seasons = new Set<string>();
+    for (const item of items) {
+      const show = item.seriesTitle || item.title.replace(/\s+S\d+E\d+.*$/i, '').trim();
+      shows.add(show);
+      seasons.add(`${show}_S${item.seasonNumber ?? 1}`);
+    }
+
+    const epCount = items.length;
+    const showCount = shows.size;
+    const seasonCount = seasons.size;
+
+    return `${epCount.toLocaleString()} ${epCount === 1 ? 'episode' : 'episodes'} across ${showCount} ${showCount === 1 ? 'show' : 'shows'} (${seasonCount} ${seasonCount === 1 ? 'season' : 'seasons'})`;
+  }
+
+  getShowsCount(items?: DryRunItem[]): number {
+    if (!items || items.length === 0) return 0;
+    const shows = new Set<string>();
+    for (const item of items) {
+      const show = item.seriesTitle || item.title.replace(/\s+S\d+E\d+.*$/i, '').trim();
+      shows.add(show);
+    }
+    return shows.size;
+  }
+
+  getSeasonsCount(items?: DryRunItem[]): number {
+    if (!items || items.length === 0) return 0;
+    const seasons = new Set<string>();
+    for (const item of items) {
+      const show = item.seriesTitle || item.title.replace(/\s+S\d+E\d+.*$/i, '').trim();
+      seasons.add(`${show}_S${item.seasonNumber ?? 1}`);
+    }
+    return seasons.size;
+  }
+
+  groupItemsByShow(items?: DryRunItem[]): Array<{
+    showTitle: string;
+    year?: number;
+    externalId: string;
+    totalEpisodes: number;
+    seasons: Array<{
+      seasonNumber: number;
+      episodes: DryRunItem[];
+    }>;
+    sampleItem: DryRunItem;
+  }> {
+    if (!items || items.length === 0) return [];
+    const map = new Map<string, {
+      showTitle: string;
+      year?: number;
+      externalId: string;
+      seasonsMap: Map<number, DryRunItem[]>;
+      sampleItem: DryRunItem;
+    }>();
+
+    for (const item of items) {
+      const seriesTitle = item.seriesTitle || item.title.replace(/\s+S\d+E\d+.*$/i, '').trim() || item.title;
+      const key = `${seriesTitle}_${item.year || ''}_${item.externalId || ''}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          showTitle: seriesTitle,
+          year: item.year,
+          externalId: item.externalId,
+          seasonsMap: new Map<number, DryRunItem[]>(),
+          sampleItem: item,
+        });
+      }
+
+      const group = map.get(key)!;
+      const seasonNum = item.seasonNumber !== undefined ? item.seasonNumber : 1;
+      if (!group.seasonsMap.has(seasonNum)) {
+        group.seasonsMap.set(seasonNum, []);
+      }
+      group.seasonsMap.get(seasonNum)!.push(item);
+    }
+
+    const result: Array<{
+      showTitle: string;
+      year?: number;
+      externalId: string;
+      totalEpisodes: number;
+      seasons: Array<{
+        seasonNumber: number;
+        episodes: DryRunItem[];
+      }>;
+      sampleItem: DryRunItem;
+    }> = [];
+
+    for (const g of map.values()) {
+      const seasons = Array.from(g.seasonsMap.entries())
+        .map(([seasonNumber, episodes]) => ({
+          seasonNumber,
+          episodes: episodes.sort((a, b) => (a.episodeNumber || 0) - (b.episodeNumber || 0)),
+        }))
+        .sort((a, b) => a.seasonNumber - b.seasonNumber);
+
+      const totalEpisodes = seasons.reduce((acc, s) => acc + s.episodes.length, 0);
+      result.push({
+        showTitle: g.showTitle,
+        year: g.year,
+        externalId: g.externalId,
+        totalEpisodes,
+        seasons,
+        sampleItem: g.sampleItem,
+      });
+    }
+
+    return result.sort((a, b) => a.showTitle.localeCompare(b.showTitle));
+  }
+
+  toggleShowExpanded(section: string, showKey: string) {
+    const fullKey = `${section}_${showKey}`;
+    if (this.expandedShows.has(fullKey)) {
+      this.expandedShows.delete(fullKey);
+    } else {
+      this.expandedShows.add(fullKey);
+    }
+  }
+
+  isShowExpanded(section: string, showKey: string): boolean {
+    return this.expandedShows.has(`${section}_${showKey}`);
   }
 
   getIconBg(type: string): string {

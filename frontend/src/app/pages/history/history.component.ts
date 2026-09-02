@@ -307,7 +307,7 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
             <span>Sync is currently running... Items and logs are updating live in real time.</span>
           </div>
           
-          <!-- Summary Metrics Cards Grid -->
+          <!-- Summary Metrics Cards Grid (4 Media Categories) -->
           <div class="dry-run-stats-grid">
             
             <!-- 1. Hardlinked / Would Link -->
@@ -315,7 +315,10 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
               <div class="stat-icon stat-icon-would-link">🔗</div>
               <div class="stat-content">
                 <div class="stat-number stat-num-would-link">{{ selectedRunDetail.summary.linkedCount }}</div>
-                <div class="stat-label">{{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Would Hardlink' : 'Hardlinked' }}</div>
+                <div class="stat-label">{{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Ready to Hardlink' : 'Hardlinked' }}</div>
+                <div class="stat-sub stat-sub-highlight" *ngIf="isEpisodeRun() && selectedRunDetail.categorized.linked.length">
+                  {{ getBreakdownText(selectedRunDetail.categorized.linked) }}
+                </div>
                 <div class="stat-sub">{{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Has target audio; instant / 0 space' : 'Zero-space link created' }}</div>
               </div>
             </div>
@@ -326,6 +329,9 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
               <div class="stat-content">
                 <div class="stat-number stat-num-needs-download">{{ selectedRunDetail.summary.searchTriggeredCount }}</div>
                 <div class="stat-label">{{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Needs Download' : 'Searches Triggered' }}</div>
+                <div class="stat-sub stat-sub-highlight" *ngIf="isEpisodeRun() && selectedRunDetail.categorized.searchTriggered.length">
+                  {{ getBreakdownText(selectedRunDetail.categorized.searchTriggered) }}
+                </div>
                 <div class="stat-sub">{{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Lacks target audio; secondary downloads' : 'Dispatched to child indexers' }}</div>
               </div>
             </div>
@@ -336,40 +342,76 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
               <div class="stat-content">
                 <div class="stat-number stat-num-already-linked">{{ selectedRunDetail.summary.alreadyLinkedCount }}</div>
                 <div class="stat-label">Already Hardlinked</div>
-                <div class="stat-sub">Existing link verified</div>
+                <div class="stat-sub stat-sub-highlight" *ngIf="isEpisodeRun() && selectedRunDetail.categorized.alreadyLinked.length">
+                  {{ getBreakdownText(selectedRunDetail.categorized.alreadyLinked) }}
+                </div>
+                <div class="stat-sub">Existing link verified on disk</div>
               </div>
             </div>
 
             <!-- 4. On Secondary -->
-            <div class="stat-card stat-card-already-child">
-              <div class="stat-icon stat-icon-already-child">📁</div>
+            <div class="stat-card stat-card-already-exists">
+              <div class="stat-icon stat-icon-already-exists">📁</div>
               <div class="stat-content">
-                <div class="stat-number stat-num-already-child">{{ selectedRunDetail.summary.alreadyExistsChildCount }}</div>
+                <div class="stat-number stat-num-already-exists">{{ selectedRunDetail.summary.alreadyExistsChildCount }}</div>
                 <div class="stat-label">Already on Secondary</div>
+                <div class="stat-sub stat-sub-highlight" *ngIf="isEpisodeRun() && selectedRunDetail.categorized.alreadyExistsChild.length">
+                  {{ getBreakdownText(selectedRunDetail.categorized.alreadyExistsChild) }}
+                </div>
                 <div class="stat-sub">Secondary downloaded copy</div>
-              </div>
-            </div>
-
-            <!-- 5. Errors -->
-            <div class="stat-card stat-card-errors">
-              <div class="stat-icon stat-icon-errors">⚠️</div>
-              <div class="stat-content">
-                <div class="stat-number stat-num-errors">{{ selectedRunDetail.summary.errorCount }}</div>
-                <div class="stat-label">Errors</div>
-                <div class="stat-sub">{{ selectedRunDetail.summary.errorCount === 0 ? 'Clean run' : 'Issues encountered' }}</div>
               </div>
             </div>
 
           </div>
 
-          <!-- In-Modal Search Bar -->
-          <div class="search-bar-container">
-            <input 
-              type="text" 
-              class="form-input" 
-              placeholder="Search items by title or path in this run..." 
-              [(ngModel)]="modalSearchQuery"
-            />
+          <!-- Slim Status & Errors Summary Bar -->
+          <div class="dry-run-status-bar" [class.has-errors]="selectedRunDetail.summary.errorCount > 0">
+            <div class="status-bar-item">
+              <span>📊 Total Scanned: <strong>{{ selectedRunDetail.summary.totalScanned.toLocaleString() }}</strong></span>
+              <span class="status-divider">•</span>
+              <span *ngIf="selectedRunDetail.summary.errorCount === 0" class="text-muted">✅ 0 Inspection Errors</span>
+              <span *ngIf="selectedRunDetail.summary.errorCount > 0" class="text-danger font-semibold">⚠️ {{ selectedRunDetail.summary.errorCount }} System / Inspection Errors</span>
+            </div>
+            <div class="status-bar-item text-xs text-muted" *ngIf="isEpisodeRun()">
+              <span>{{ isEpisodeRun() ? 'Grouped by TV Series & Season' : 'Movie Library' }}</span>
+            </div>
+          </div>
+
+          <!-- In-Modal Search Bar & View Toggle -->
+          <div class="filter-bar flex-between flex-wrap gap-sm">
+            <div class="filter-input-wrap">
+              <span class="filter-search-icon">🔍</span>
+              <input 
+                type="text" 
+                class="form-input filter-input" 
+                placeholder="Search items by title or path in this run..." 
+                [(ngModel)]="modalSearchQuery"
+              />
+            </div>
+
+            <!-- Group by Show vs Flat List toggle (Shown for Sonarr / Episode Runs) -->
+            <div class="view-mode-toggle" *ngIf="isEpisodeRun()">
+              <button
+                type="button"
+                class="view-mode-btn"
+                [class.active]="reportViewMode === 'grouped'"
+                (click)="reportViewMode = 'grouped'"
+              >
+                📺 Group by Show
+              </button>
+              <button
+                type="button"
+                class="view-mode-btn"
+                [class.active]="reportViewMode === 'flat'"
+                (click)="reportViewMode = 'flat'"
+              >
+                📋 Flat List
+              </button>
+            </div>
+
+            <button *ngIf="modalSearchQuery" class="btn btn-ghost btn-sm" (click)="modalSearchQuery = ''">
+              Clear Filter
+            </button>
           </div>
 
           <!-- Loading State Inside Modal -->
@@ -381,108 +423,323 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
           <div class="dry-run-sections" *ngIf="!isModalLoading">
             
             <!-- SECTION 1: Hardlinked / Would Link Items -->
-            <details class="details-section" [open]="filteredLinked.length > 0">
-              <summary class="section-summary summary-would-link">
+            <details class="report-section" [open]="filteredLinked.length > 0">
+              <summary class="report-summary">
                 <div class="summary-left">
-                  <span class="summary-icon">🔗</span>
+                  <span class="section-icon">🔗</span>
                   <span class="section-title">
-                    {{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Would Hardlink Items' : 'Hardlinked Items' }} ({{ filteredLinked.length }})
+                    {{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Ready to Hardlink' : 'Hardlinked Items' }}
+                  </span>
+                  <span class="badge badge-info">{{ filteredLinked.length }} {{ isEpisodeRun() ? 'Episodes' : 'Items' }}</span>
+                  <span class="badge badge-secondary" *ngIf="isEpisodeRun() && filteredLinked.length">
+                    {{ getShowsCount(filteredLinked) }} Shows ({{ getSeasonsCount(filteredLinked) }} Seasons)
                   </span>
                 </div>
                 <span class="summary-hint">Zero-space hardlinks created or simulated</span>
               </summary>
               <div class="section-content">
                 <div *ngIf="filteredLinked.length === 0" class="section-empty">
-                  No items in this category.
+                  No items in this category{{ modalSearchQuery ? ' matching your filter' : '' }}.
                 </div>
-                <div *ngFor="let item of filteredLinked" class="item-row">
-                  <div class="item-header">
-                    <div class="item-title-group">
-                      <span class="item-title-text">{{ item.mediaTitle }}</span>
-                      <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
-                        {{ item.mediaType | uppercase }}
-                      </span>
+
+                <!-- Grouped View -->
+                <ng-container *ngIf="isEpisodeRun() && reportViewMode === 'grouped'">
+                  <div *ngFor="let group of groupItemsByShow(filteredLinked)" class="show-group-card">
+                    <div class="show-group-header" (click)="toggleShowExpanded('linked', group.showTitle)">
+                      <div class="flex-align-center gap-sm flex-wrap">
+                        <span class="show-group-title">{{ group.showTitle }}</span>
+                        <span class="badge badge-sonarr">SERIES</span>
+                        <span class="badge badge-info">{{ group.totalEpisodes }} {{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Ready to Link' : 'Linked' }}</span>
+                        <span class="badge badge-secondary">{{ group.seasons.length }} {{ group.seasons.length === 1 ? 'Season' : 'Seasons' }}</span>
+                      </div>
+                      <span class="dropdown-chevron">{{ isShowExpanded('linked', group.showTitle) ? '▲' : '▼' }}</span>
+                    </div>
+
+                    <div class="show-group-content" *ngIf="isShowExpanded('linked', group.showTitle)">
+                      <div *ngFor="let season of group.seasons" class="season-group-block">
+                        <div class="season-group-header">
+                          <span>Season {{ season.seasonNumber }}</span>
+                          <span class="badge badge-muted">{{ season.episodes.length }} Episodes</span>
+                        </div>
+                        <div class="season-episodes-list">
+                          <div *ngFor="let item of season.episodes" class="item-row">
+                            <div class="item-header">
+                              <div class="item-title-group">
+                                <span class="item-title-text">{{ item.mediaTitle }}</span>
+                                <span *ngIf="item.languagesDetected && item.languagesDetected.length" class="badge badge-success">
+                                  Audio: {{ item.languagesDetected.join(', ') | uppercase }}
+                                </span>
+                              </div>
+                              <span class="badge badge-info">{{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Will Hardlink' : 'Hardlinked' }}</span>
+                            </div>
+                            <div class="item-paths" *ngIf="item.sourcePath || item.destinationPath">
+                              <div class="path-line" *ngIf="item.sourcePath">
+                                <span class="path-tag">SOURCE:</span> <code>{{ item.sourcePath }}</code>
+                              </div>
+                              <div class="path-line" *ngIf="item.destinationPath">
+                                <span class="path-tag">TARGET:</span> <code>{{ item.destinationPath }}</code>
+                              </div>
+                            </div>
+                            <div class="item-reason" *ngIf="item.details && item.details !== item.mediaTitle">{{ item.details }}</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div class="item-paths" *ngIf="item.sourcePath || item.destinationPath">
-                    <div class="path-line" *ngIf="item.sourcePath">
-                      <span class="path-tag">SOURCE:</span>
-                      <code>{{ item.sourcePath }}</code>
+                </ng-container>
+
+                <!-- Flat View -->
+                <ng-container *ngIf="!isEpisodeRun() || reportViewMode === 'flat'">
+                  <div *ngFor="let item of filteredLinked" class="item-row">
+                    <div class="item-header">
+                      <div class="item-title-group">
+                        <span class="item-title-text">{{ item.mediaTitle }}</span>
+                        <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
+                          {{ item.mediaType | uppercase }}
+                        </span>
+                        <span *ngIf="item.languagesDetected && item.languagesDetected.length" class="badge badge-success">
+                          Audio: {{ item.languagesDetected.join(', ') | uppercase }}
+                        </span>
+                      </div>
+                      <span class="badge badge-info">{{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Will Hardlink' : 'Hardlinked' }}</span>
                     </div>
-                    <div class="path-line" *ngIf="item.destinationPath">
-                      <span class="path-tag">TARGET:</span>
-                      <code>{{ item.destinationPath }}</code>
+                    <div class="item-paths" *ngIf="item.sourcePath || item.destinationPath">
+                      <div class="path-line" *ngIf="item.sourcePath">
+                        <span class="path-tag">SOURCE:</span> <code>{{ item.sourcePath }}</code>
+                      </div>
+                      <div class="path-line" *ngIf="item.destinationPath">
+                        <span class="path-tag">TARGET:</span> <code>{{ item.destinationPath }}</code>
+                      </div>
                     </div>
+                    <div class="item-reason" *ngIf="item.details && item.details !== item.mediaTitle">{{ item.details }}</div>
                   </div>
-                  <div class="item-reason" *ngIf="item.details && item.details !== item.mediaTitle">
-                    {{ item.details }}
-                  </div>
-                </div>
+                </ng-container>
               </div>
             </details>
 
             <!-- SECTION 2: Searches Triggered / Needs Download -->
-            <details class="details-section" [open]="filteredSearchTriggered.length > 0">
-              <summary class="section-summary summary-needs-download">
+            <details class="report-section" [open]="filteredSearchTriggered.length > 0">
+              <summary class="report-summary">
                 <div class="summary-left">
-                  <span class="summary-icon">📥</span>
+                  <span class="section-icon">📥</span>
                   <span class="section-title">
-                    {{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Needs Download on Child' : 'Searches Triggered on Child' }} ({{ filteredSearchTriggered.length }})
+                    {{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Needs Download on Secondary' : 'Searches Triggered on Secondary' }}
+                  </span>
+                  <span class="badge badge-warning">{{ filteredSearchTriggered.length }} {{ isEpisodeRun() ? 'Episodes' : 'Items' }}</span>
+                  <span class="badge badge-secondary" *ngIf="isEpisodeRun() && filteredSearchTriggered.length">
+                    {{ getShowsCount(filteredSearchTriggered) }} Shows ({{ getSeasonsCount(filteredSearchTriggered) }} Seasons)
                   </span>
                 </div>
-                <span class="summary-hint">Missing target audio; downloaded from indexers</span>
+                <span class="summary-hint">Missing target audio; secondary downloaded from indexers</span>
               </summary>
               <div class="section-content">
                 <div *ngIf="filteredSearchTriggered.length === 0" class="section-empty">
-                  No items in this category.
+                  No items in this category{{ modalSearchQuery ? ' matching your filter' : '' }}.
                 </div>
-                <div *ngFor="let item of filteredSearchTriggered" class="item-row">
-                  <div class="item-header">
-                    <div class="item-title-group">
-                      <span class="item-title-text">{{ item.mediaTitle }}</span>
-                      <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
-                        {{ item.mediaType | uppercase }}
-                      </span>
+
+                <!-- Grouped View -->
+                <ng-container *ngIf="isEpisodeRun() && reportViewMode === 'grouped'">
+                  <div *ngFor="let group of groupItemsByShow(filteredSearchTriggered)" class="show-group-card">
+                    <div class="show-group-header" (click)="toggleShowExpanded('searched', group.showTitle)">
+                      <div class="flex-align-center gap-sm flex-wrap">
+                        <span class="show-group-title">{{ group.showTitle }}</span>
+                        <span class="badge badge-sonarr">SERIES</span>
+                        <span class="badge badge-warning">{{ group.totalEpisodes }} {{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Needs Download' : 'Searched' }}</span>
+                        <span class="badge badge-secondary">{{ group.seasons.length }} {{ group.seasons.length === 1 ? 'Season' : 'Seasons' }}</span>
+                      </div>
+                      <span class="dropdown-chevron">{{ isShowExpanded('searched', group.showTitle) ? '▲' : '▼' }}</span>
+                    </div>
+
+                    <div class="show-group-content" *ngIf="isShowExpanded('searched', group.showTitle)">
+                      <div *ngFor="let season of group.seasons" class="season-group-block">
+                        <div class="season-group-header">
+                          <span>Season {{ season.seasonNumber }}</span>
+                          <span class="badge badge-muted">{{ season.episodes.length }} Episodes</span>
+                        </div>
+                        <div class="season-episodes-list">
+                          <div *ngFor="let item of season.episodes" class="item-row">
+                            <div class="item-header">
+                              <span class="item-title-text">{{ item.mediaTitle }}</span>
+                              <span class="badge badge-warning">{{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Needs Download' : 'Search Triggered' }}</span>
+                            </div>
+                            <div class="item-reason">{{ item.details }}</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div class="item-reason">{{ item.details }}</div>
-                </div>
+                </ng-container>
+
+                <!-- Flat View -->
+                <ng-container *ngIf="!isEpisodeRun() || reportViewMode === 'flat'">
+                  <div *ngFor="let item of filteredSearchTriggered" class="item-row">
+                    <div class="item-header">
+                      <div class="item-title-group">
+                        <span class="item-title-text">{{ item.mediaTitle }}</span>
+                        <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
+                          {{ item.mediaType | uppercase }}
+                        </span>
+                      </div>
+                      <span class="badge badge-warning">{{ selectedRunDetail.run.triggerType === 'dry_run' ? 'Needs Download' : 'Search Triggered' }}</span>
+                    </div>
+                    <div class="item-reason">{{ item.details }}</div>
+                  </div>
+                </ng-container>
               </div>
             </details>
 
-            <!-- SECTION 3: Already on Secondary -->
-            <details class="details-section" [open]="filteredAlreadyExists.length > 0">
-              <summary class="section-summary summary-already-child">
+            <!-- SECTION 3: Already Hardlinked -->
+            <details class="report-section" [open]="filteredAlreadyLinked.length > 0" *ngIf="filteredAlreadyLinked.length > 0">
+              <summary class="report-summary">
                 <div class="summary-left">
-                  <span class="summary-icon">📁</span>
-                  <span class="section-title">Already on Secondary ({{ filteredAlreadyExists.length }})</span>
+                  <span class="section-icon">✅</span>
+                  <span class="section-title">Already Hardlinked</span>
+                  <span class="badge badge-success">{{ filteredAlreadyLinked.length }} {{ isEpisodeRun() ? 'Episodes' : 'Items' }}</span>
+                  <span class="badge badge-secondary" *ngIf="isEpisodeRun() && filteredAlreadyLinked.length">
+                    {{ getShowsCount(filteredAlreadyLinked) }} Shows ({{ getSeasonsCount(filteredAlreadyLinked) }} Seasons)
+                  </span>
+                </div>
+                <span class="summary-hint">Existing hardlink verified on disk</span>
+              </summary>
+              <div class="section-content">
+                <!-- Grouped View -->
+                <ng-container *ngIf="isEpisodeRun() && reportViewMode === 'grouped'">
+                  <div *ngFor="let group of groupItemsByShow(filteredAlreadyLinked)" class="show-group-card">
+                    <div class="show-group-header" (click)="toggleShowExpanded('alreadyLinked', group.showTitle)">
+                      <div class="flex-align-center gap-sm flex-wrap">
+                        <span class="show-group-title">{{ group.showTitle }}</span>
+                        <span class="badge badge-sonarr">SERIES</span>
+                        <span class="badge badge-success">{{ group.totalEpisodes }} Linked</span>
+                        <span class="badge badge-secondary">{{ group.seasons.length }} {{ group.seasons.length === 1 ? 'Season' : 'Seasons' }}</span>
+                      </div>
+                      <span class="dropdown-chevron">{{ isShowExpanded('alreadyLinked', group.showTitle) ? '▲' : '▼' }}</span>
+                    </div>
+
+                    <div class="show-group-content" *ngIf="isShowExpanded('alreadyLinked', group.showTitle)">
+                      <div *ngFor="let season of group.seasons" class="season-group-block">
+                        <div class="season-group-header">
+                          <span>Season {{ season.seasonNumber }}</span>
+                          <span class="badge badge-muted">{{ season.episodes.length }} Episodes</span>
+                        </div>
+                        <div class="season-episodes-list">
+                          <div *ngFor="let item of season.episodes" class="item-row">
+                            <div class="item-header">
+                              <span class="item-title-text">{{ item.mediaTitle }}</span>
+                              <span class="badge badge-success">Already Linked</span>
+                            </div>
+                            <div class="item-paths" *ngIf="item.sourcePath || item.destinationPath">
+                              <div class="path-line" *ngIf="item.sourcePath">
+                                <span class="path-tag">SOURCE:</span> <code>{{ item.sourcePath }}</code>
+                              </div>
+                              <div class="path-line" *ngIf="item.destinationPath">
+                                <span class="path-tag">TARGET:</span> <code>{{ item.destinationPath }}</code>
+                              </div>
+                            </div>
+                            <div class="item-reason" *ngIf="item.details && item.details !== item.mediaTitle">{{ item.details }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </ng-container>
+
+                <!-- Flat View -->
+                <ng-container *ngIf="!isEpisodeRun() || reportViewMode === 'flat'">
+                  <div *ngFor="let item of filteredAlreadyLinked" class="item-row">
+                    <div class="item-header">
+                      <span class="item-title-text">{{ item.mediaTitle }}</span>
+                      <span class="badge badge-success">Already Linked</span>
+                    </div>
+                    <div class="item-paths" *ngIf="item.sourcePath || item.destinationPath">
+                      <div class="path-line" *ngIf="item.sourcePath">
+                        <span class="path-tag">SOURCE:</span> <code>{{ item.sourcePath }}</code>
+                      </div>
+                      <div class="path-line" *ngIf="item.destinationPath">
+                        <span class="path-tag">TARGET:</span> <code>{{ item.destinationPath }}</code>
+                      </div>
+                    </div>
+                    <div class="item-reason" *ngIf="item.details && item.details !== item.mediaTitle">{{ item.details }}</div>
+                  </div>
+                </ng-container>
+              </div>
+            </details>
+
+            <!-- SECTION 4: Already on Secondary -->
+            <details class="report-section" [open]="filteredAlreadyExists.length > 0">
+              <summary class="report-summary">
+                <div class="summary-left">
+                  <span class="section-icon">📁</span>
+                  <span class="section-title">Already on Secondary</span>
+                  <span class="badge badge-muted">{{ filteredAlreadyExists.length }} {{ isEpisodeRun() ? 'Episodes' : 'Items' }}</span>
+                  <span class="badge badge-secondary" *ngIf="isEpisodeRun() && filteredAlreadyExists.length">
+                    {{ getShowsCount(filteredAlreadyExists) }} Shows ({{ getSeasonsCount(filteredAlreadyExists) }} Seasons)
+                  </span>
                 </div>
                 <span class="summary-hint">Secondary instance has its own separate downloaded file</span>
               </summary>
               <div class="section-content">
                 <div *ngIf="filteredAlreadyExists.length === 0" class="section-empty">
-                  No secondary duplicate files found.
+                  No secondary duplicate files found{{ modalSearchQuery ? ' matching your filter' : '' }}.
                 </div>
-                <div *ngFor="let item of filteredAlreadyExists" class="item-row">
-                  <div class="item-header">
-                    <div class="item-title-group">
-                      <span class="item-title-text">{{ item.mediaTitle }}</span>
-                      <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
-                        {{ item.mediaType | uppercase }}
-                      </span>
+
+                <!-- Grouped View -->
+                <ng-container *ngIf="isEpisodeRun() && reportViewMode === 'grouped'">
+                  <div *ngFor="let group of groupItemsByShow(filteredAlreadyExists)" class="show-group-card">
+                    <div class="show-group-header" (click)="toggleShowExpanded('existsChild', group.showTitle)">
+                      <div class="flex-align-center gap-sm flex-wrap">
+                        <span class="show-group-title">{{ group.showTitle }}</span>
+                        <span class="badge badge-sonarr">SERIES</span>
+                        <span class="badge badge-muted">{{ group.totalEpisodes }} On Secondary</span>
+                        <span class="badge badge-secondary">{{ group.seasons.length }} {{ group.seasons.length === 1 ? 'Season' : 'Seasons' }}</span>
+                      </div>
+                      <span class="dropdown-chevron">{{ isShowExpanded('existsChild', group.showTitle) ? '▲' : '▼' }}</span>
+                    </div>
+
+                    <div class="show-group-content" *ngIf="isShowExpanded('existsChild', group.showTitle)">
+                      <div *ngFor="let season of group.seasons" class="season-group-block">
+                        <div class="season-group-header">
+                          <span>Season {{ season.seasonNumber }}</span>
+                          <span class="badge badge-muted">{{ season.episodes.length }} Episodes</span>
+                        </div>
+                        <div class="season-episodes-list">
+                          <div *ngFor="let item of season.episodes" class="item-row">
+                            <div class="item-header">
+                              <span class="item-title-text">{{ item.mediaTitle }}</span>
+                              <span class="badge badge-muted">Independent Copy</span>
+                            </div>
+                            <div class="item-reason">{{ item.details }}</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div class="item-reason">{{ item.details }}</div>
-                </div>
+                </ng-container>
+
+                <!-- Flat View -->
+                <ng-container *ngIf="!isEpisodeRun() || reportViewMode === 'flat'">
+                  <div *ngFor="let item of filteredAlreadyExists" class="item-row">
+                    <div class="item-header">
+                      <div class="item-title-group">
+                        <span class="item-title-text">{{ item.mediaTitle }}</span>
+                        <span class="badge" [ngClass]="item.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
+                          {{ item.mediaType | uppercase }}
+                        </span>
+                      </div>
+                      <span class="badge badge-muted">Independent Copy</span>
+                    </div>
+                    <div class="item-reason">{{ item.details }}</div>
+                  </div>
+                </ng-container>
               </div>
             </details>
 
-            <!-- SECTION 4: Errors -->
-            <details class="details-section" [open]="filteredErrors.length > 0">
-              <summary class="section-summary summary-errors">
+            <!-- SECTION 5: Errors -->
+            <details class="report-section" [open]="filteredErrors.length > 0">
+              <summary class="report-summary">
                 <div class="summary-left">
-                  <span class="summary-icon">⚠️</span>
-                  <span class="section-title">Errors Encountered ({{ filteredErrors.length }})</span>
+                  <span class="section-icon">⚠️</span>
+                  <span class="section-title">Errors Encountered</span>
+                  <span class="badge badge-danger">{{ filteredErrors.length }} {{ filteredErrors.length === 1 ? 'Error' : 'Errors' }}</span>
                 </div>
                 <span class="summary-hint">API timeouts, permissions, or lookup failures</span>
               </summary>
@@ -500,20 +757,20 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                   <div class="item-reason item-reason-error">{{ item.details }}</div>
                   <div class="item-paths" *ngIf="item.sourcePath">
                     <div class="path-line">
-                      <span class="path-tag">FILE:</span>
-                      <code>{{ item.sourcePath }}</code>
+                      <span class="path-tag">FILE:</span> <code>{{ item.sourcePath }}</code>
                     </div>
                   </div>
                 </div>
               </div>
             </details>
 
-            <!-- SECTION 5: Raw Logs Stream for this Run -->
-            <details class="details-section" [open]="selectedRunDetail.items.length > 0">
-              <summary class="section-summary summary-already-linked">
+            <!-- SECTION 6: Raw Logs Stream for this Run -->
+            <details class="report-section" [open]="selectedRunDetail.items.length > 0">
+              <summary class="report-summary">
                 <div class="summary-left">
-                  <span class="summary-icon">📜</span>
-                  <span class="section-title">Raw Execution Logs ({{ filteredLogs.length }})</span>
+                  <span class="section-icon">📜</span>
+                  <span class="section-title">Raw Execution Logs</span>
+                  <span class="badge badge-muted">{{ filteredLogs.length }} Entries</span>
                 </div>
                 <span class="summary-hint">Chronological logs for this sync event</span>
               </summary>
@@ -574,6 +831,8 @@ export class HistoryComponent implements OnInit, OnDestroy {
   isModalLoading = false;
   selectedRunDetail: SyncRunDetail | null = null;
   modalSearchQuery = '';
+  reportViewMode: 'grouped' | 'flat' = 'grouped';
+  expandedShows = new Set<string>();
 
   // Live Timer & Polling State
   private liveTickerTimer: any = null;
@@ -863,6 +1122,11 @@ export class HistoryComponent implements OnInit, OnDestroy {
     return this.applyModalFilter(list);
   }
 
+  get filteredAlreadyLinked(): SyncHistoryEntry[] {
+    const list = this.selectedRunDetail?.categorized?.alreadyLinked || [];
+    return this.applyModalFilter(list);
+  }
+
   get filteredSearchTriggered(): SyncHistoryEntry[] {
     const list = this.selectedRunDetail?.categorized?.searchTriggered || [];
     return this.applyModalFilter(list);
@@ -881,6 +1145,151 @@ export class HistoryComponent implements OnInit, OnDestroy {
   get filteredLogs(): SyncHistoryEntry[] {
     const list = this.selectedRunDetail?.items || [];
     return this.applyModalFilter(list);
+  }
+
+  isEpisodeRun(): boolean {
+    if (!this.selectedRunDetail) return false;
+    return (
+      this.selectedRunDetail.run.syncProfile?.mainInstance?.type === 'sonarr' ||
+      this.selectedRunDetail.items.some(i => i.mediaType === 'episode')
+    );
+  }
+
+  getBreakdownText(items?: SyncHistoryEntry[]): string {
+    if (!items || items.length === 0) return '';
+    const isEpisode = items.some(i => i.mediaType === 'episode') || this.isEpisodeRun();
+    if (!isEpisode) {
+      return `${items.length} ${items.length === 1 ? 'movie' : 'movies'}`;
+    }
+
+    const shows = new Set<string>();
+    const seasons = new Set<string>();
+    for (const item of items) {
+      const show = item.mediaTitle.replace(/\s+S\d+E\d+.*$/i, '').trim() || item.mediaTitle;
+      const seasonMatch = item.mediaTitle.match(/S(\d+)/i);
+      const seasonNum = seasonMatch ? parseInt(seasonMatch[1], 10) : 1;
+      shows.add(show);
+      seasons.add(`${show}_S${seasonNum}`);
+    }
+
+    const epCount = items.length;
+    const showCount = shows.size;
+    const seasonCount = seasons.size;
+
+    return `${epCount.toLocaleString()} ${epCount === 1 ? 'episode' : 'episodes'} across ${showCount} ${showCount === 1 ? 'show' : 'shows'} (${seasonCount} ${seasonCount === 1 ? 'season' : 'seasons'})`;
+  }
+
+  getShowsCount(items?: SyncHistoryEntry[]): number {
+    if (!items || items.length === 0) return 0;
+    const shows = new Set<string>();
+    for (const item of items) {
+      const show = item.mediaTitle.replace(/\s+S\d+E\d+.*$/i, '').trim() || item.mediaTitle;
+      shows.add(show);
+    }
+    return shows.size;
+  }
+
+  getSeasonsCount(items?: SyncHistoryEntry[]): number {
+    if (!items || items.length === 0) return 0;
+    const seasons = new Set<string>();
+    for (const item of items) {
+      const show = item.mediaTitle.replace(/\s+S\d+E\d+.*$/i, '').trim() || item.mediaTitle;
+      const seasonMatch = item.mediaTitle.match(/S(\d+)/i);
+      const seasonNum = seasonMatch ? parseInt(seasonMatch[1], 10) : 1;
+      seasons.add(`${show}_S${seasonNum}`);
+    }
+    return seasons.size;
+  }
+
+  groupItemsByShow(items?: SyncHistoryEntry[]): Array<{
+    showTitle: string;
+    externalId: string;
+    totalEpisodes: number;
+    seasons: Array<{
+      seasonNumber: number;
+      episodes: SyncHistoryEntry[];
+    }>;
+    sampleItem: SyncHistoryEntry;
+  }> {
+    if (!items || items.length === 0) return [];
+    const map = new Map<string, {
+      showTitle: string;
+      externalId: string;
+      seasonsMap: Map<number, SyncHistoryEntry[]>;
+      sampleItem: SyncHistoryEntry;
+    }>();
+
+    for (const item of items) {
+      const showTitle = item.mediaTitle.replace(/\s+S\d+E\d+.*$/i, '').trim() || item.mediaTitle;
+      const key = `${showTitle}_${item.externalId || ''}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          showTitle,
+          externalId: item.externalId,
+          seasonsMap: new Map<number, SyncHistoryEntry[]>(),
+          sampleItem: item,
+        });
+      }
+
+      const group = map.get(key)!;
+      const seasonMatch = item.mediaTitle.match(/S(\d+)/i);
+      const seasonNum = seasonMatch ? parseInt(seasonMatch[1], 10) : 1;
+      if (!group.seasonsMap.has(seasonNum)) {
+        group.seasonsMap.set(seasonNum, []);
+      }
+      group.seasonsMap.get(seasonNum)!.push(item);
+    }
+
+    const result: Array<{
+      showTitle: string;
+      externalId: string;
+      totalEpisodes: number;
+      seasons: Array<{
+        seasonNumber: number;
+        episodes: SyncHistoryEntry[];
+      }>;
+      sampleItem: SyncHistoryEntry;
+    }> = [];
+
+    for (const g of map.values()) {
+      const seasons = Array.from(g.seasonsMap.entries())
+        .map(([seasonNumber, episodes]) => {
+          episodes.sort((a, b) => {
+            const epA = a.mediaTitle.match(/E(\d+)/i);
+            const epB = b.mediaTitle.match(/E(\d+)/i);
+            const numA = epA ? parseInt(epA[1], 10) : 0;
+            const numB = epB ? parseInt(epB[1], 10) : 0;
+            return numA - numB;
+          });
+          return { seasonNumber, episodes };
+        })
+        .sort((a, b) => a.seasonNumber - b.seasonNumber);
+
+      const totalEpisodes = seasons.reduce((acc, s) => acc + s.episodes.length, 0);
+      result.push({
+        showTitle: g.showTitle,
+        externalId: g.externalId,
+        totalEpisodes,
+        seasons,
+        sampleItem: g.sampleItem,
+      });
+    }
+
+    return result.sort((a, b) => a.showTitle.localeCompare(b.showTitle));
+  }
+
+  toggleShowExpanded(section: string, showKey: string) {
+    const fullKey = `${section}_${showKey}`;
+    if (this.expandedShows.has(fullKey)) {
+      this.expandedShows.delete(fullKey);
+    } else {
+      this.expandedShows.add(fullKey);
+    }
+  }
+
+  isShowExpanded(section: string, showKey: string): boolean {
+    return this.expandedShows.has(`${section}_${showKey}`);
   }
 
   private applyModalFilter(items: SyncHistoryEntry[]): SyncHistoryEntry[] {

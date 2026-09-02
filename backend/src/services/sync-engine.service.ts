@@ -10,6 +10,7 @@ import { logger } from '../utils/logger';
 export interface DryRunItem {
   id: string;
   title: string;
+  seriesTitle?: string;
   mediaType: 'movie' | 'episode';
   year?: number;
   seasonNumber?: number;
@@ -964,6 +965,7 @@ export class SyncEngineService {
           const baseItem: Omit<DryRunItem, 'action' | 'reason'> = {
             id: `ep-${series.id}-${ep.id}`,
             title: epTitle,
+            seriesTitle: series.title,
             mediaType: 'episode',
             seasonNumber: ep.seasonNumber,
             episodeNumber: ep.episodeNumber,

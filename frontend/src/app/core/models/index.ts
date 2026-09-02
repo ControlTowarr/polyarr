@@ -210,6 +210,7 @@ export interface SyncResult {
 export interface DryRunItem {
   id: string;
   title: string;
+  seriesTitle?: string;
   mediaType: 'movie' | 'episode';
   year?: number;
   seasonNumber?: number;

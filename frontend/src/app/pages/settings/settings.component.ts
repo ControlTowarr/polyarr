@@ -21,9 +21,9 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
     </div>
 
     <!-- Connected Instances Card -->
-    <div class="card" style="margin-bottom:var(--space-xl);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-lg);">
-        <h3 style="font-weight:600;font-size:1.1rem;">Connected Instances ({{ instances.length }})</h3>
+    <div class="card mb-xl">
+      <div class="flex-between mb-lg">
+        <h3 class="text-semibold text-lg">Connected Instances ({{ instances.length }})</h3>
         <button class="btn btn-primary btn-sm" (click)="openAddInstance()" *ngIf="!showAddForm" id="add-instance-btn">
           + Add Instance
         </button>
@@ -39,12 +39,12 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
       ></app-instance-form>
 
       <!-- Loading State -->
-      <div *ngIf="isLoading" style="display:flex;justify-content:center;padding:var(--space-lg);">
-        <span class="spinner" style="width:32px;height:32px;"></span>
+      <div *ngIf="isLoading" class="loading-center">
+        <span class="spinner spinner-lg"></span>
       </div>
 
       <!-- Empty State -->
-      <div *ngIf="!isLoading && instances.length === 0 && !showAddForm" class="empty-state" style="padding:var(--space-lg);">
+      <div *ngIf="!isLoading && instances.length === 0 && !showAddForm" class="empty-state empty-state-compact">
         <p class="empty-state-text">No instances configured yet.</p>
         <button class="btn btn-primary" (click)="openAddInstance()">Add Your First Instance</button>
       </div>
@@ -53,22 +53,18 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
       <div class="instance-list" *ngIf="!isLoading && instances.length > 0 && !showAddForm">
         <div class="instance-item" *ngFor="let inst of instances">
           <div class="instance-item-info">
-            <div
-              class="instance-item-icon"
-              [style.background]="getIconBg(inst.type)"
-              [style.color]="getIconColor(inst.type)"
-            >
-              {{ inst.type === 'radarr' ? 'R' : 'S' }}
+            <div class="instance-item-icon-transparent">
+              <img [src]="inst.type === 'radarr' ? 'radarr.svg' : 'sonarr.svg'" [alt]="inst.type" class="instance-logo-md" />
             </div>
             <div>
-              <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap;">
-                <span style="font-weight:600;font-size:1rem;">{{ inst.name }}</span>
+              <div class="flex-align-center gap-sm flex-wrap">
+                <span class="text-semibold text-base">{{ inst.name }}</span>
                 <span *ngIf="inst.isMain" class="badge badge-success">Source of Truth</span>
                 <span class="badge badge-muted">{{ (inst.language || 'en') | uppercase }}</span>
               </div>
-              <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">{{ inst.url }}</div>
-              <div style="font-size:0.75rem;color:var(--text-muted);" *ngIf="inst.rootFolderPath">Root: {{ inst.rootFolderPath }}</div>
-              <div style="font-size:0.75rem;color:var(--accent-primary);" *ngIf="inst.localPath && inst.localPath !== inst.rootFolderPath">Polyarr Mount: {{ inst.localPath }}</div>
+              <div class="text-xs text-muted mt-xs">{{ inst.url }}</div>
+              <div class="text-xs text-muted" *ngIf="inst.rootFolderPath">Root: {{ inst.rootFolderPath }}</div>
+              <div class="text-xs text-accent" *ngIf="inst.localPath && inst.localPath !== inst.rootFolderPath">Polyarr Mount: {{ inst.localPath }}</div>
             </div>
           </div>
 
@@ -82,7 +78,7 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
             <button class="btn btn-ghost btn-sm" (click)="editInstance(inst)">
               Edit
             </button>
-            <button class="btn btn-ghost btn-sm" style="color:var(--color-danger);" (click)="deleteInstance(inst)">
+            <button class="btn btn-ghost btn-sm text-danger" (click)="deleteInstance(inst)">
               Delete
             </button>
           </div>
@@ -91,18 +87,18 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
     </div>
 
     <!-- Sync Profiles Card -->
-    <div class="card" style="margin-bottom:var(--space-xl);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-lg);">
-        <h3 style="font-weight:600;font-size:1.1rem;">Sync Profiles ({{ profiles.length }})</h3>
+    <div class="card mb-xl">
+      <div class="flex-between mb-lg">
+        <h3 class="text-semibold text-lg">Sync Profiles ({{ profiles.length }})</h3>
         <button class="btn btn-primary btn-sm" (click)="openAddProfile()" *ngIf="!showProfileForm">
           + Add Sync Profile
         </button>
       </div>
 
       <!-- Add / Edit Profile Form -->
-      <div *ngIf="showProfileForm" style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-lg);margin-bottom:var(--space-lg);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
-          <h4 style="font-weight:600;">{{ editingProfileId ? 'Edit Sync Rule' : 'Create New Sync Rule' }}</h4>
+      <div *ngIf="showProfileForm" class="settings-subpanel p-lg mb-lg">
+        <div class="flex-between mb-md">
+          <h4 class="text-semibold">{{ editingProfileId ? 'Edit Sync Rule' : 'Create New Sync Rule' }}</h4>
           <button class="btn btn-ghost btn-sm" (click)="cancelProfileForm()">✕</button>
         </div>
         
@@ -137,11 +133,11 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
         </div>
 
         <!-- Consistent Modern Switch Controls -->
-        <div style="display:flex;flex-direction:column;gap:var(--space-sm);margin-top:var(--space-md);">
-          <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+        <div class="flex-col gap-sm mt-md">
+          <div class="switch-setting-row">
             <div>
-              <div style="font-weight:600;font-size:0.9rem;">Enable Active Scanning & Syncing</div>
-              <div style="font-size:0.78rem;color:var(--text-muted);">Include this profile in automated background syncs, library scans, and webhook imports</div>
+              <div class="switch-setting-label">Enable Active Scanning & Syncing</div>
+              <div class="switch-setting-desc">Include this profile in automated background syncs, library scans, and webhook imports</div>
             </div>
             <label class="switch">
               <input type="checkbox" [(ngModel)]="currentProfile.enabled">
@@ -149,10 +145,10 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
             </label>
           </div>
 
-          <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+          <div class="switch-setting-row">
             <div>
-              <div style="font-weight:600;font-size:0.9rem;">Auto-Search Missing Audio</div>
-              <div style="font-size:0.78rem;color:var(--text-muted);">Automatically search indexers for secondary audio if missing on main. When off, missing audio items are ignored (no-op) and only matching files are linked.</div>
+              <div class="switch-setting-label">Auto-Search Missing Audio</div>
+              <div class="switch-setting-desc">Automatically search indexers for secondary audio if missing on main. When off, missing audio items are ignored (no-op) and only matching files are linked.</div>
             </div>
             <label class="switch">
               <input type="checkbox" [(ngModel)]="currentProfile.searchIfMissing">
@@ -160,10 +156,10 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
             </label>
           </div>
 
-          <div *ngIf="isSonarrProfile()" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+          <div *ngIf="isSonarrProfile()" class="switch-setting-row">
             <div>
-              <div style="font-weight:600;font-size:0.9rem;">Sync Monitored Seasons</div>
-              <div style="font-size:0.78rem;color:var(--text-muted);">Keep season monitor status synchronized across Sonarr instances (Sonarr only)</div>
+              <div class="switch-setting-label">Sync Monitored Seasons</div>
+              <div class="switch-setting-desc">Keep season monitor status synchronized across Sonarr instances (Sonarr only)</div>
             </div>
             <label class="switch">
               <input type="checkbox" [(ngModel)]="currentProfile.syncMonitoredSeasons">
@@ -173,15 +169,15 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
         </div>
 
         <!-- Optional Advanced Path Overrides -->
-        <div style="margin-top:var(--space-md);background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
-          <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" (click)="showProfilePathOverrides = !showProfilePathOverrides">
-            <span style="font-size:0.88rem;font-weight:600;color:var(--text-secondary);">
+        <div class="settings-subpanel">
+          <div class="flex-between cursor-pointer" (click)="showProfilePathOverrides = !showProfilePathOverrides">
+            <span class="text-sm text-semibold text-secondary">
               ⚙️ Path Overrides (Optional)
             </span>
-            <span style="font-size:0.8rem;color:var(--accent-primary);">{{ showProfilePathOverrides ? '▲ Hide' : '▼ Expand' }}</span>
+            <span class="text-xs text-accent">{{ showProfilePathOverrides ? '▲ Hide' : '▼ Expand' }}</span>
           </div>
           
-          <div *ngIf="showProfilePathOverrides" style="margin-top:var(--space-md);display:flex;flex-direction:column;gap:var(--space-md);">
+          <div *ngIf="showProfilePathOverrides" class="flex-col gap-md mt-md">
             <app-path-browser
               label="Source Media Path Override (Main)"
               [currentPath]="currentProfile.mainPath || ''"
@@ -200,7 +196,7 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
           </div>
         </div>
 
-        <div style="display:flex;gap:var(--space-sm);justify-content:flex-end;margin-top:var(--space-lg);">
+        <div class="flex-end gap-sm mt-lg">
           <button class="btn btn-ghost" (click)="cancelProfileForm()">Cancel</button>
           <button class="btn btn-primary" (click)="saveProfile()">
             {{ editingProfileId ? 'Update Profile' : 'Create Profile' }}

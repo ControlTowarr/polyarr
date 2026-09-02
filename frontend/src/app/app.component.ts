@@ -13,7 +13,7 @@ import { ApiService } from './core/services/api.service';
   template: `
     <div class="app-layout">
       <app-sidebar *ngIf="!isSetupRoute"></app-sidebar>
-      <main class="main-content" [style.margin-left]="isSetupRoute ? '0' : null">
+      <main class="main-content" [class.no-sidebar]="isSetupRoute">
         <router-outlet></router-outlet>
       </main>
       <app-toast></app-toast>

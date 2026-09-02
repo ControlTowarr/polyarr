@@ -29,7 +29,7 @@ export interface FilterState {
       </div>
 
       <!-- Type Filter Chips -->
-      <div style="display:flex;gap:var(--space-xs);align-items:center;">
+      <div class="flex-align-center gap-xs">
         <button
           class="filter-chip"
           [class.active]="filters.mediaType === ''"
@@ -48,14 +48,14 @@ export interface FilterState {
       </div>
 
       <!-- Sync / Availability Status Dropdown -->
-      <select class="form-select" [(ngModel)]="filters.syncStatus" (change)="onFilterChange()" style="max-width:200px;">
+      <select class="form-select max-w-sm" [(ngModel)]="filters.syncStatus" (change)="onFilterChange()">
         <option value="">All Main Library</option>
         <option value="main_only">Main Only (Not in Child)</option>
         <option value="synced">Synced (In Child)</option>
       </select>
 
       <!-- Language Dropdown -->
-      <select class="form-select" [(ngModel)]="filters.language" (change)="onFilterChange()" style="max-width:160px;">
+      <select class="form-select max-w-xs" [(ngModel)]="filters.language" (change)="onFilterChange()">
         <option value="">All Audio Tracks</option>
         <option value="en">English 🇬🇧</option>
         <option value="fr">French 🇫🇷</option>

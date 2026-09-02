@@ -29,7 +29,7 @@ import { FilterBarComponent, FilterState } from '../../components/filter-bar/fil
         </p>
       </div>
 
-      <div style="display:flex;align-items:center;gap:var(--space-md);">
+      <div class="flex-align-center gap-md">
         <div class="sync-indicator">
           <span class="sync-dot" [class.syncing]="isScanning"></span>
           {{ isScanning ? 'Discovering Media...' : 'Ready' }}
@@ -50,8 +50,8 @@ import { FilterBarComponent, FilterState } from '../../components/filter-bar/fil
     ></app-filter-bar>
 
     <!-- Initial Loading State -->
-    <div *ngIf="isLoading" style="display:flex;justify-content:center;padding:var(--space-2xl);">
-      <span class="spinner" style="width:40px;height:40px;border-width:3px;"></span>
+    <div *ngIf="isLoading" class="loading-center">
+      <span class="spinner spinner-lg"></span>
     </div>
 
     <!-- Empty State -->
@@ -81,13 +81,13 @@ import { FilterBarComponent, FilterState } from '../../components/filter-bar/fil
     </div>
 
     <!-- Bottom Infinite Scroll Loading Indicator -->
-    <div *ngIf="!isLoading && isLoadingMore" style="display:flex;justify-content:center;align-items:center;gap:var(--space-sm);padding:var(--space-xl);color:var(--text-muted);font-size:0.9rem;">
-      <span class="spinner" style="width:24px;height:24px;border-width:2px;"></span>
+    <div *ngIf="!isLoading && isLoadingMore" class="infinite-scroll-indicator">
+      <span class="spinner spinner-md"></span>
       <span>Loading more titles ({{ mediaItems.length }} / {{ totalItems }})...</span>
     </div>
 
     <!-- Infinite Scroll Sentinel Target -->
-    <div #scrollSentinel style="height:20px;margin-top:var(--space-md);visibility:hidden;"></div>
+    <div #scrollSentinel class="scroll-sentinel"></div>
   `,
 })
 export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {

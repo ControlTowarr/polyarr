@@ -10,13 +10,13 @@ import { MediaItemDetail } from '../../core/models';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div *ngIf="isLoading" style="display:flex;justify-content:center;padding:var(--space-2xl);">
-      <span class="spinner" style="width:40px;height:40px;border-width:3px;"></span>
+    <div *ngIf="isLoading" class="loading-center">
+      <span class="spinner spinner-lg"></span>
     </div>
 
     <div *ngIf="!isLoading && media" class="detail-container">
-      <div style="margin-bottom:var(--space-md);">
-        <button (click)="goBack()" class="btn btn-ghost btn-sm" style="cursor:pointer;">← Back to Dashboard</button>
+      <div class="mb-md">
+        <button (click)="goBack()" class="btn btn-ghost btn-sm cursor-pointer">← Back to Dashboard</button>
       </div>
 
       <!-- Hero Section -->
@@ -28,16 +28,16 @@ import { MediaItemDetail } from '../../core/models';
           class="detail-poster"
           (error)="media.posterUrl = ''"
         />
-        <div *ngIf="!media.posterUrl" class="detail-poster" style="aspect-ratio:2/3;background:var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:3rem;">
+        <div *ngIf="!media.posterUrl" class="detail-poster detail-poster-placeholder">
           {{ media.mediaType === 'movie' ? '🎬' : '📺' }}
         </div>
 
         <div class="detail-info">
-          <div style="display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-xs);">
+          <div class="detail-meta-tags">
             <span class="badge" [ngClass]="media.mediaType === 'movie' ? 'badge-radarr' : 'badge-sonarr'">
               {{ media.mediaType === 'movie' ? 'Movie' : 'Series' }}
             </span>
-            <span style="color:var(--text-muted);font-size:0.9rem;">{{ media.year }}</span>
+            <span class="text-sm text-muted">{{ media.year }}</span>
           </div>
 
           <h1 class="detail-title">{{ media.title }}</h1>
@@ -48,7 +48,7 @@ import { MediaItemDetail } from '../../core/models';
       <!-- Cross-Instance Status Table -->
       <div class="detail-section">
         <h3 class="detail-section-title">Instance Status</h3>
-        <div style="overflow-x:auto;">
+        <div class="table-responsive">
           <table class="data-table">
             <thead>
               <tr>
@@ -62,7 +62,7 @@ import { MediaItemDetail } from '../../core/models';
             </thead>
             <tbody>
               <tr *ngFor="let inst of media.instances">
-                <td style="font-weight:600;">{{ inst.instance?.name || 'Instance #' + inst.instanceId }}</td>
+                <td class="text-semibold">{{ inst.instance?.name || 'Instance #' + inst.instanceId }}</td>
                 <td><span class="badge badge-muted">{{ (inst.instance?.language || 'en') | uppercase }}</span></td>
                 <td>
                   <span class="badge" [ngClass]="{
@@ -77,16 +77,16 @@ import { MediaItemDetail } from '../../core/models';
                   <span *ngIf="!inst.syncMethod || inst.syncMethod === 'not_synced'" class="badge badge-muted">Unsynced</span>
                 </td>
                 <td>
-                  <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                    <span *ngFor="let lang of inst.audioLanguages" class="badge badge-info" style="font-size:0.7rem;">
+                  <div class="media-card-lang-list">
+                    <span *ngFor="let lang of inst.audioLanguages" class="badge badge-info badge-lang-tag">
                       {{ lang | uppercase }}
                     </span>
-                    <span *ngIf="!inst.audioLanguages || inst.audioLanguages.length === 0" style="color:var(--text-muted);font-size:0.8rem;">
+                    <span *ngIf="!inst.audioLanguages || inst.audioLanguages.length === 0" class="text-xs text-muted">
                       None
                     </span>
                   </div>
                 </td>
-                <td style="font-size:0.8rem;color:var(--text-muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;" [title]="inst.filePath || ''">
+                <td class="detail-file-path" [title]="inst.filePath || ''">
                   {{ inst.filePath || '—' }}
                 </td>
               </tr>
@@ -98,7 +98,7 @@ import { MediaItemDetail } from '../../core/models';
       <!-- Sync History Section -->
       <div class="detail-section" *ngIf="media.syncHistory && media.syncHistory.length > 0">
         <h3 class="detail-section-title">Sync History</h3>
-        <div style="overflow-x:auto;">
+        <div class="table-responsive">
           <table class="data-table">
             <thead>
               <tr>
@@ -114,8 +114,8 @@ import { MediaItemDetail } from '../../core/models';
                     {{ getActionLabel(hist.action) }}
                   </span>
                 </td>
-                <td style="font-size:0.85rem;color:var(--text-secondary);">{{ hist.details }}</td>
-                <td style="font-size:0.8rem;color:var(--text-muted);">{{ formatDate(hist.createdAt) }}</td>
+                <td class="text-sm text-secondary">{{ hist.details }}</td>
+                <td class="text-time-muted">{{ formatDate(hist.createdAt) }}</td>
               </tr>
             </tbody>
           </table>

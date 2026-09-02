@@ -8,9 +8,9 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
   imports: [CommonModule, RouterLink, RouterLinkActive],
   template: `
     <aside class="sidebar" [class.open]="isOpen">
-      <a class="sidebar-header" routerLink="/dashboard" style="text-decoration:none;cursor:pointer;display:flex;align-items:center;">
-        <div class="sidebar-logo-icon" style="margin-right:var(--space-md);flex-shrink:0;">
-          <img src="logo.png" alt="Polyarr Logo" style="width:32px;height:32px;object-fit:contain;display:block;" />
+      <a class="sidebar-header" routerLink="/dashboard">
+        <div class="sidebar-logo-icon-box">
+          <img src="logo.png" alt="Polyarr Logo" class="sidebar-logo-img" />
         </div>
         <span class="sidebar-logo">Polyarr</span>
       </a>
@@ -42,9 +42,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
     </aside>
 
     <!-- Mobile toggle -->
-    <button class="btn btn-icon sidebar-toggle" (click)="isOpen = !isOpen"
-            [style.display]="isMobile ? 'flex' : 'none'"
-            [style.position]="'fixed'" [style.top]="'12px'" [style.left]="'12px'" [style.zIndex]="'200'">
+    <button class="btn btn-icon sidebar-toggle" (click)="isOpen = !isOpen">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
       </svg>

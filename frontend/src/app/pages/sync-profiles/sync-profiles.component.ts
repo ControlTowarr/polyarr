@@ -23,9 +23,9 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
     </div>
 
     <!-- Create / Edit Form -->
-    <div class="card" *ngIf="showForm" style="margin-bottom:var(--space-xl);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
-        <h3 style="font-weight:600;font-size:1.1rem;">{{ editingProfileId ? 'Edit Sync Rule' : 'Configure Sync Rule' }}</h3>
+    <div class="card mb-xl" *ngIf="showForm">
+      <div class="flex-between mb-md">
+        <h3 class="text-semibold text-lg">{{ editingProfileId ? 'Edit Sync Rule' : 'Configure Sync Rule' }}</h3>
         <button class="btn btn-ghost btn-sm" (click)="cancelForm()">✕</button>
       </div>
 
@@ -60,11 +60,11 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
       </div>
 
       <!-- Consistent Modern Switch Rows -->
-      <div style="display:flex;flex-direction:column;gap:var(--space-sm);margin-top:var(--space-md);">
-        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+      <div class="flex-col gap-sm mt-md">
+        <div class="switch-setting-row">
           <div>
-            <div style="font-weight:600;font-size:0.9rem;">Enable Active Scanning & Syncing</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">Include this profile in automated background syncs, library scans, and webhook imports</div>
+            <div class="switch-setting-label">Enable Active Scanning & Syncing</div>
+            <div class="switch-setting-desc">Include this profile in automated background syncs, library scans, and webhook imports</div>
           </div>
           <label class="switch">
             <input type="checkbox" [(ngModel)]="currentProfile.enabled">
@@ -72,10 +72,10 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
           </label>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+        <div class="switch-setting-row">
           <div>
-            <div style="font-weight:600;font-size:0.9rem;">Auto-Search Missing Audio</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">Automatically search indexers for secondary audio if missing on main. When off, missing audio items are ignored (no-op) and only matching files are linked.</div>
+            <div class="switch-setting-label">Auto-Search Missing Audio</div>
+            <div class="switch-setting-desc">Automatically search indexers for secondary audio if missing on main. When off, missing audio items are ignored (no-op) and only matching files are linked.</div>
           </div>
           <label class="switch">
             <input type="checkbox" [(ngModel)]="currentProfile.searchIfMissing">
@@ -83,10 +83,10 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
           </label>
         </div>
 
-        <div *ngIf="isSonarrProfile()" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+        <div *ngIf="isSonarrProfile()" class="switch-setting-row">
           <div>
-            <div style="font-weight:600;font-size:0.9rem;">Sync Monitored Seasons</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">Keep season monitor status synchronized across Sonarr instances (Sonarr only)</div>
+            <div class="switch-setting-label">Sync Monitored Seasons</div>
+            <div class="switch-setting-desc">Keep season monitor status synchronized across Sonarr instances (Sonarr only)</div>
           </div>
           <label class="switch">
             <input type="checkbox" [(ngModel)]="currentProfile.syncMonitoredSeasons">
@@ -96,15 +96,15 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
       </div>
 
       <!-- Optional Advanced Path Overrides -->
-      <div style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
-        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" (click)="showPathOverrides = !showPathOverrides">
-          <span style="font-size:0.88rem;font-weight:600;color:var(--text-secondary);">
+      <div class="settings-subpanel">
+        <div class="flex-between cursor-pointer" (click)="showPathOverrides = !showPathOverrides">
+          <span class="text-sm text-semibold text-secondary">
             ⚙️ Path Overrides (Optional)
           </span>
-          <span style="font-size:0.8rem;color:var(--accent-primary);">{{ showPathOverrides ? '▲ Hide' : '▼ Expand' }}</span>
+          <span class="text-xs text-accent">{{ showPathOverrides ? '▲ Hide' : '▼ Expand' }}</span>
         </div>
         
-        <div *ngIf="showPathOverrides" style="margin-top:var(--space-md);display:flex;flex-direction:column;gap:var(--space-md);">
+        <div *ngIf="showPathOverrides" class="flex-col gap-md mt-md">
           <app-path-browser
             label="Source Media Path Override (Main)"
             [currentPath]="currentProfile.mainPath || ''"
@@ -123,7 +123,7 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
         </div>
       </div>
 
-      <div style="display:flex;justify-content:flex-end;gap:var(--space-sm);margin-top:var(--space-xl);">
+      <div class="flex-end gap-sm mt-xl">
         <button class="btn btn-ghost" (click)="cancelForm()">Cancel</button>
         <button class="btn btn-primary" (click)="saveProfile()">
           {{ editingProfileId ? 'Update Profile' : 'Save Sync Profile' }}
@@ -142,19 +142,19 @@ import { PathBrowserComponent } from '../../components/path-browser/path-browser
     <div class="instance-list" *ngIf="profiles.length > 0">
       <div class="instance-item" *ngFor="let profile of profiles">
         <div class="instance-item-info">
-          <div class="instance-item-icon" style="background:rgba(167,139,250,0.2);color:#a78bfa;">
+          <div class="instance-item-icon instance-item-icon-sync">
             🔄
           </div>
           <div>
-            <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap;">
-              <span style="font-weight:600;font-size:1.05rem;">
+            <div class="flex-align-center gap-sm flex-wrap">
+              <span class="text-semibold text-base">
                 {{ profile.mainInstance?.name || 'Main' }} ➔ {{ profile.childInstance?.name || 'Child' }}
               </span>
               <span class="badge" [ngClass]="profile.enabled ? 'badge-success' : 'badge-muted'">
                 {{ profile.enabled ? '✓ Active' : '⏸ Paused' }}
               </span>
             </div>
-            <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">
+            <div class="text-sm text-secondary mt-xs">
               Link Strategy: <span class="badge badge-info">{{ profile.linkType }}</span> &bull;
               Target Language: <span class="badge badge-info">{{ (profile.childInstance?.language || 'en') | uppercase }}</span> &bull;
               Delay: {{ profile.delayHours }}h &bull;

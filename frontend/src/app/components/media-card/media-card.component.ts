@@ -8,7 +8,7 @@ import { MediaItem } from '../../core/models';
   imports: [CommonModule],
   template: `
     <div class="media-card" (click)="cardClick.emit(media)">
-      <div style="position:relative;width:100%;aspect-ratio:2/3;background:var(--bg-surface);">
+      <div class="media-card-poster-box">
         <img
           *ngIf="media.posterUrl"
           [src]="media.posterUrl"
@@ -17,7 +17,7 @@ import { MediaItem } from '../../core/models';
           loading="lazy"
           (error)="media.posterUrl = null"
         />
-        <div *ngIf="!media.posterUrl" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:2.5rem;">
+        <div *ngIf="!media.posterUrl" class="media-card-poster-placeholder">
           {{ media.mediaType === 'movie' ? '🎬' : '📺' }}
         </div>
 
@@ -41,12 +41,12 @@ import { MediaItem } from '../../core/models';
           {{ media.title }}
         </div>
         <div class="media-card-meta">
-          <span style="font-size:0.8rem;color:var(--text-muted);">{{ media.year }}</span>
+          <span class="text-xs text-muted">{{ media.year }}</span>
 
           <!-- Audio languages badges -->
-          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">
+          <div class="media-card-lang-list">
             @for (lang of allLanguages; track lang) {
-              <span class="badge badge-muted" style="font-size:0.65rem;padding:2px 6px;">
+              <span class="badge badge-muted badge-lang-tag">
                 {{ getLanguageFlag(lang) }} {{ lang | uppercase }}
               </span>
             }

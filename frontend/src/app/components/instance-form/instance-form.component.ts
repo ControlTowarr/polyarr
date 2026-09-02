@@ -22,9 +22,12 @@ export function normalizeUrl(url: string): string {
   standalone: true,
   imports: [CommonModule, FormsModule, PathBrowserComponent],
   template: `
-    <div class="card" style="margin-bottom:var(--space-md);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
-        <h4 style="font-weight:600;">{{ isEditing ? 'Edit' : 'Add' }} {{ typeLabel }} Instance</h4>
+    <div class="card mb-md">
+      <div class="flex-between mb-md">
+        <div class="flex-align-center gap-sm">
+          <img [src]="formData.type === 'radarr' ? 'radarr.svg' : 'sonarr.svg'" [alt]="typeLabel" class="instance-logo-sm" />
+          <h4 class="text-semibold m-0">{{ isEditing ? 'Edit' : 'Add' }} {{ typeLabel }} Instance</h4>
+        </div>
         <button class="btn btn-ghost btn-sm" (click)="cancel.emit()" *ngIf="showCancel">✕</button>
       </div>
 
@@ -51,27 +54,25 @@ export function normalizeUrl(url: string): string {
           id="instance-url"
           [placeholder]="urlPlaceholder"
         />
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">
+        <p class="text-xs text-muted mt-xs">
           e.g. <code>192.168.1.100:7878</code> or <code>http://radarr.local:7878</code>
         </p>
       </div>
 
       <div class="form-group">
         <label class="form-label" for="instance-apikey">API Key</label>
-        <div style="position:relative;">
+        <div class="password-toggle-wrapper">
           <input
-            class="form-input"
+            class="form-input password-toggle-input"
             [type]="hideApiKey ? 'password' : 'text'"
             [(ngModel)]="formData.apiKey"
             id="instance-apikey"
             placeholder="Found in Settings → General → Security"
-            style="width:100%;padding-right:40px;"
           />
           <button
             type="button"
-            class="btn btn-ghost btn-sm"
+            class="btn btn-ghost btn-sm password-toggle-btn"
             (click)="hideApiKey = !hideApiKey"
-            style="position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:4px 8px;"
           >
             {{ hideApiKey ? '👁️' : '🔒' }}
           </button>
@@ -91,14 +92,14 @@ export function normalizeUrl(url: string): string {
       </div>
 
       <!-- Source of Truth checkbox: only visible when not explicitly fixed -->
-      <div *ngIf="fixedIsMain === undefined" style="margin-bottom:var(--space-md);">
-        <div style="display:flex;align-items:center;gap:var(--space-sm);">
-          <input type="checkbox" id="isMainCheck" [(ngModel)]="formData.isMain" style="accent-color:var(--accent-primary);width:18px;height:18px;cursor:pointer;" />
-          <label for="isMainCheck" style="cursor:pointer;font-size:0.9rem;font-weight:500;">
+      <div *ngIf="fixedIsMain === undefined" class="mb-md">
+        <div class="flex-align-center gap-sm">
+          <input type="checkbox" id="isMainCheck" [(ngModel)]="formData.isMain" class="cursor-pointer" />
+          <label for="isMainCheck" class="cursor-pointer text-medium">
             Source of Truth Instance (Main library)
           </label>
         </div>
-        <p class="form-hint" style="margin-left:26px;margin-top:4px;">
+        <p class="form-hint mt-xs">
           Designates this as your primary library (e.g. English). Polyarr monitors this server for new downloads to sync, hardlink, and coordinate with secondary child instances.
         </p>
       </div>
@@ -116,12 +117,12 @@ export function normalizeUrl(url: string): string {
       </div>
 
       <!-- Server Settings (Root Folder & Quality Profile) -->
-      <div *ngIf="isEditing || testResult?.success || rootFolders.length > 0 || qualityProfiles.length > 0 || formData.rootFolderPath" style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
-        <div style="font-size:0.85rem;font-weight:600;color:var(--accent-primary);margin-bottom:var(--space-sm);">
+      <div *ngIf="isEditing || testResult?.success || rootFolders.length > 0 || qualityProfiles.length > 0 || formData.rootFolderPath" class="settings-subpanel">
+        <div class="settings-subpanel-title">
           ⚙️ Server Settings
         </div>
 
-        <div class="form-group" [style.margin-bottom]="formData.isMain ? '0' : 'var(--space-sm)'">
+        <div class="form-group" [ngClass]="formData.isMain ? 'mb-0' : 'mb-sm'">
           <label class="form-label">Root Media Folder</label>
           @if (rootFolders.length > 0) {
             <select class="form-select" [(ngModel)]="formData.rootFolderPath">
@@ -138,7 +139,7 @@ export function normalizeUrl(url: string): string {
           </p>
         </div>
 
-        <div class="form-group" style="margin-bottom:0;" *ngIf="!formData.isMain">
+        <div class="form-group mb-0" *ngIf="!formData.isMain">
           <label class="form-label">Quality Profile</label>
           @if (qualityProfiles.length > 0) {
             <select class="form-select" [(ngModel)]="formData.qualityProfileId">
@@ -157,8 +158,8 @@ export function normalizeUrl(url: string): string {
       </div>
 
       <!-- Polyarr Local Path -->
-      <div *ngIf="isEditing || testResult?.success || formData.rootFolderPath || formData.localPath || rootFolders.length > 0" style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
-        <div style="font-size:0.85rem;font-weight:600;color:var(--accent-primary);margin-bottom:var(--space-sm);">
+      <div *ngIf="isEditing || testResult?.success || formData.rootFolderPath || formData.localPath || rootFolders.length > 0" class="settings-subpanel">
+        <div class="settings-subpanel-title">
           📂 Polyarr's Local Path
         </div>
         <app-path-browser
@@ -170,7 +171,7 @@ export function normalizeUrl(url: string): string {
       </div>
 
       <!-- Actions -->
-      <div style="display:flex;gap:var(--space-sm);justify-content:flex-end;margin-top:var(--space-lg);">
+      <div class="flex-end gap-sm mt-lg">
         <button class="btn btn-ghost" (click)="cancel.emit()" *ngIf="showCancel" type="button">
           Cancel
         </button>

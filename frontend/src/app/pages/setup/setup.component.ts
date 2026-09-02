@@ -21,12 +21,12 @@ interface SetupStep {
   template: `
     <div class="setup-container">
       <!-- Header -->
-      <div style="text-align:center;margin-bottom:var(--space-2xl);">
-        <div style="margin-bottom:var(--space-md);display:inline-block;">
-          <img src="logo.png" alt="Polyarr Logo" style="width:72px;height:72px;object-fit:contain;display:block;margin:auto;" />
+      <div class="setup-welcome-header">
+        <div class="setup-header-logo-box">
+          <img src="logo.png" alt="Polyarr Logo" class="instance-logo-lg m-auto" />
         </div>
-        <h1 class="page-title" style="font-size:2.2rem;">Welcome to Polyarr</h1>
-        <p class="page-subtitle" style="max-width:520px;margin:auto;">
+        <h1 class="page-title setup-welcome-title">Welcome to Polyarr</h1>
+        <p class="page-subtitle setup-welcome-subtitle">
           Connect your Radarr & Sonarr instances to automate multi-language audio synchronization, hardlinking, and monitoring.
         </p>
       </div>
@@ -47,21 +47,21 @@ interface SetupStep {
           <div class="setup-step-number">1</div>
           <div>
             <div class="setup-step-title">Connect Main Instance (Source of Truth)</div>
-            <p style="font-size:0.85rem;color:var(--text-secondary);">
+            <p class="text-sm text-secondary">
               This is your primary library (e.g. English). Polyarr monitors this server for new downloads.
             </p>
           </div>
         </div>
 
-        <div *ngIf="mainInstances.length > 0" style="margin-bottom:var(--space-md);">
-          <div *ngFor="let inst of mainInstances" class="instance-item" style="margin-bottom:var(--space-sm);">
+        <div *ngIf="mainInstances.length > 0" class="mb-md">
+          <div *ngFor="let inst of mainInstances" class="instance-item mb-sm">
             <div class="instance-item-info">
-              <div class="instance-item-icon" [style.background]="getIconBg(inst.type)">
-                {{ inst.type === 'radarr' ? 'R' : 'S' }}
+              <div class="instance-item-icon-transparent">
+                <img [src]="inst.type === 'radarr' ? 'radarr.svg' : 'sonarr.svg'" [alt]="inst.type" class="instance-logo-md" />
               </div>
               <div>
-                <div style="font-weight:600;">{{ inst.name }}</div>
-                <div style="font-size:0.8rem;color:var(--text-muted);">{{ inst.url }}</div>
+                <div class="text-semibold">{{ inst.name }}</div>
+                <div class="text-xs text-muted">{{ inst.url }}</div>
               </div>
             </div>
             <span class="badge badge-success">✓ Main Connected</span>
@@ -74,7 +74,7 @@ interface SetupStep {
           (saved)="onInstanceSaved($event)"
         ></app-instance-form>
 
-        <div style="display:flex;justify-content:flex-end;margin-top:var(--space-md);">
+        <div class="flex-end mt-md">
           <button
             class="btn btn-primary"
             (click)="nextStep()"
@@ -91,21 +91,21 @@ interface SetupStep {
           <div class="setup-step-number">2</div>
           <div>
             <div class="setup-step-title">Connect Child Instances</div>
-            <p style="font-size:0.85rem;color:var(--text-secondary);">
+            <p class="text-sm text-secondary">
               Add secondary language instances (e.g. Radarr French / Sonarr Anime) that will link from the main library.
             </p>
           </div>
         </div>
 
-        <div *ngIf="childInstances.length > 0" style="margin-bottom:var(--space-md);">
-          <div *ngFor="let inst of childInstances" class="instance-item" style="margin-bottom:var(--space-sm);">
+        <div *ngIf="childInstances.length > 0" class="mb-md">
+          <div *ngFor="let inst of childInstances" class="instance-item mb-sm">
             <div class="instance-item-info">
-              <div class="instance-item-icon" [style.background]="getIconBg(inst.type)">
-                {{ inst.type === 'radarr' ? 'R' : 'S' }}
+              <div class="instance-item-icon-transparent">
+                <img [src]="inst.type === 'radarr' ? 'radarr.svg' : 'sonarr.svg'" [alt]="inst.type" class="instance-logo-md" />
               </div>
               <div>
-                <div style="font-weight:600;">{{ inst.name }} ({{ (inst.language || 'en') | uppercase }})</div>
-                <div style="font-size:0.8rem;color:var(--text-muted);">{{ inst.url }}</div>
+                <div class="text-semibold">{{ inst.name }} ({{ (inst.language || 'en') | uppercase }})</div>
+                <div class="text-xs text-muted">{{ inst.url }}</div>
               </div>
             </div>
             <span class="badge badge-success">✓ Added</span>
@@ -118,7 +118,7 @@ interface SetupStep {
           (saved)="onInstanceSaved($event)"
         ></app-instance-form>
 
-        <div style="display:flex;justify-content:space-between;margin-top:var(--space-md);">
+        <div class="flex-between mt-md">
           <button class="btn btn-ghost" (click)="prevStep()">← Back</button>
           <button
             class="btn btn-primary"
@@ -136,7 +136,7 @@ interface SetupStep {
           <div class="setup-step-number">3</div>
           <div>
             <div class="setup-step-title">Configure Sync Strategy</div>
-            <p style="font-size:0.85rem;color:var(--text-secondary);">
+            <p class="text-sm text-secondary">
               Choose how media files link between instances and configure automation preferences.
             </p>
           </div>
@@ -145,12 +145,12 @@ interface SetupStep {
         <div class="card">
           <!-- Detected Sync Pair Summary -->
           @if (mainInstances.length === 1 && childInstances.length === 1) {
-            <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-lg);">
+            <div class="setup-auto-linked-box">
               <div>
-                <div style="font-weight:600;font-size:1rem;">
+                <div class="text-semibold text-base">
                   {{ mainInstances[0].name }} ➔ {{ childInstances[0].name }}
                 </div>
-                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">
+                <div class="text-xs text-muted mt-xs">
                   Main Library ({{ (mainInstances[0].language || 'en') | uppercase }}) ➔ Child Library ({{ (childInstances[0].language || 'en') | uppercase }})
                 </div>
               </div>
@@ -188,13 +188,12 @@ interface SetupStep {
             </p>
           </div>
 
-          <!-- Modern Switch Controls -->
           <!-- Consistent Modern Switch Controls -->
-          <div style="display:flex;flex-direction:column;gap:var(--space-sm);margin-top:var(--space-md);">
-            <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+          <div class="flex-col gap-sm mt-md">
+            <div class="switch-setting-row">
               <div>
-                <div style="font-weight:600;font-size:0.9rem;">Enable Active Scanning & Syncing</div>
-                <div style="font-size:0.78rem;color:var(--text-muted);">Include this profile in automated background syncs, library scans, and webhook imports</div>
+                <div class="switch-setting-label">Enable Active Scanning & Syncing</div>
+                <div class="switch-setting-desc">Include this profile in automated background syncs, library scans, and webhook imports</div>
               </div>
               <label class="switch">
                 <input type="checkbox" [(ngModel)]="newProfile.enabled">
@@ -202,10 +201,10 @@ interface SetupStep {
               </label>
             </div>
 
-            <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+            <div class="switch-setting-row">
               <div>
-                <div style="font-weight:600;font-size:0.9rem;">Auto-Search Missing Audio</div>
-                <div style="font-size:0.78rem;color:var(--text-muted);">Automatically search indexers for secondary audio if missing on main. When off, missing audio items are ignored (no-op) and only matching files are linked.</div>
+                <div class="switch-setting-label">Auto-Search Missing Audio</div>
+                <div class="switch-setting-desc">Automatically search indexers for secondary audio if missing on main. When off, missing audio items are ignored (no-op) and only matching files are linked.</div>
               </div>
               <label class="switch">
                 <input type="checkbox" [(ngModel)]="newProfile.searchIfMissing">
@@ -213,10 +212,10 @@ interface SetupStep {
               </label>
             </div>
 
-            <div *ngIf="isSonarrProfile()" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
+            <div *ngIf="isSonarrProfile()" class="switch-setting-row">
               <div>
-                <div style="font-weight:600;font-size:0.9rem;">Sync Monitored Seasons</div>
-                <div style="font-size:0.78rem;color:var(--text-muted);">Keep season monitor status synchronized across Sonarr instances (Sonarr only)</div>
+                <div class="switch-setting-label">Sync Monitored Seasons</div>
+                <div class="switch-setting-desc">Keep season monitor status synchronized across Sonarr instances (Sonarr only)</div>
               </div>
               <label class="switch">
                 <input type="checkbox" [(ngModel)]="newProfile.syncMonitoredSeasons">
@@ -226,15 +225,15 @@ interface SetupStep {
           </div>
 
           <!-- Optional Advanced Path Overrides -->
-          <div style="margin-top:var(--space-md);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:var(--space-md);">
-            <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" (click)="showPathOverrides = !showPathOverrides">
-              <span style="font-size:0.88rem;font-weight:600;color:var(--text-secondary);">
+          <div class="settings-subpanel">
+            <div class="flex-between cursor-pointer" (click)="showPathOverrides = !showPathOverrides">
+              <span class="text-sm text-semibold text-secondary">
                 ⚙️ Path Overrides (Optional)
               </span>
-              <span style="font-size:0.8rem;color:var(--accent-primary);">{{ showPathOverrides ? '▲ Hide' : '▼ Expand' }}</span>
+              <span class="text-xs text-accent">{{ showPathOverrides ? '▲ Hide' : '▼ Expand' }}</span>
             </div>
             
-            <div *ngIf="showPathOverrides" style="margin-top:var(--space-md);display:flex;flex-direction:column;gap:var(--space-md);">
+            <div *ngIf="showPathOverrides" class="flex-col gap-md mt-md">
               <app-path-browser
                 label="Source Media Path Override (Main)"
                 [currentPath]="newProfile.mainPath || ''"
@@ -254,7 +253,7 @@ interface SetupStep {
           </div>
         </div>
 
-        <div style="display:flex;justify-content:space-between;margin-top:var(--space-xl);">
+        <div class="flex-between mt-xl">
           <button class="btn btn-ghost" (click)="prevStep()">← Back</button>
           <button class="btn btn-primary" (click)="finishSetup()" id="finish-setup-btn">
             Finish Setup & Launch Dashboard 🚀

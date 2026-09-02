@@ -242,13 +242,8 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                   </span>
                 </td>
                 <td>
-                  <span class="badge" [ngClass]="{
-                    'badge-success': item.action === 'linked' || item.action === 'added' || item.action === 'would_link',
-                    'badge-info': item.action === 'search_triggered' || item.action === 'needs_download',
-                    'badge-warning': item.action === 'season_monitored',
-                    'badge-danger': item.action === 'error'
-                  }">
-                    {{ item.action }}
+                  <span class="badge" [ngClass]="getActionBadgeClass(item.action)">
+                    {{ getActionLabel(item.action) }}
                   </span>
                 </td>
                 <td class="text-detail-secondary">
@@ -529,14 +524,8 @@ import { SyncRun, SyncRunDetail, SyncHistoryEntry } from '../../core/models';
                 <div class="raw-logs-container" *ngIf="filteredLogs.length > 0">
                   <div *ngFor="let log of filteredLogs" class="raw-log-line">
                     <span class="raw-log-time">{{ formatDate(log.createdAt) }}</span>
-                    <span class="badge badge-log-tag" [ngClass]="{
-                      'badge-success': log.action === 'linked' || log.action === 'added' || log.action === 'would_link',
-                      'badge-info': log.action === 'search_triggered' || log.action === 'needs_download',
-                      'badge-warning': log.action === 'season_monitored',
-                      'badge-danger': log.action === 'error',
-                      'badge-muted': log.action === 'already_linked' || log.action === 'already_exists_child'
-                    }">
-                      {{ log.action | uppercase }}
+                    <span class="badge badge-log-tag" [ngClass]="getActionBadgeClass(log.action)">
+                      {{ getActionLabel(log.action) }}
                     </span>
                     <span class="raw-log-msg">
                       <strong>{{ log.mediaTitle }}</strong>: {{ log.details }}
@@ -905,6 +894,43 @@ export class HistoryComponent implements OnInit, OnDestroy {
       i.sourcePath?.toLowerCase().includes(q) ||
       i.destinationPath?.toLowerCase().includes(q)
     );
+  }
+
+  getActionLabel(action: string): string {
+    switch (action) {
+      case 'linked': return '🔗 Hardlinked';
+      case 'already_linked': return '🔗 Already Linked';
+      case 'search_triggered': return '🔍 Search Triggered';
+      case 'needs_download': return '📥 Needs Download';
+      case 'already_exists_child': return '📁 Already on Child';
+      case 'would_link': return '🔗 Would Link';
+      case 'added': return '➕ Added to Child';
+      case 'season_monitored': return '📺 Season Monitored';
+      case 'skipped': return '⏭️ Skipped';
+      case 'error': return '⚠️ Error';
+      default: return action ? action.replace(/_/g, ' ').toUpperCase() : '—';
+    }
+  }
+
+  getActionBadgeClass(action: string): string {
+    switch (action) {
+      case 'linked':
+      case 'would_link':
+      case 'added':
+        return 'badge-success';
+      case 'search_triggered':
+      case 'needs_download':
+        return 'badge-info';
+      case 'season_monitored':
+        return 'badge-warning';
+      case 'error':
+        return 'badge-danger';
+      case 'already_linked':
+      case 'already_exists_child':
+      case 'skipped':
+      default:
+        return 'badge-muted';
+    }
   }
 }
 

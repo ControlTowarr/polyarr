@@ -110,12 +110,9 @@ import { MediaItemDetail } from '../../core/models';
             <tbody>
               <tr *ngFor="let hist of media.syncHistory">
                 <td>
-                  <span class="badge" [ngClass]="{
-                    'badge-success': hist.action === 'linked' || hist.action === 'added',
-                    'badge-info': hist.action === 'search_triggered',
-                    'badge-warning': hist.action === 'season_monitored',
-                    'badge-danger': hist.action === 'error'
-                  }">{{ hist.action }}</span>
+                  <span class="badge" [ngClass]="getActionBadgeClass(hist.action)">
+                    {{ getActionLabel(hist.action) }}
+                  </span>
                 </td>
                 <td style="font-size:0.85rem;color:var(--text-secondary);">{{ hist.details }}</td>
                 <td style="font-size:0.8rem;color:var(--text-muted);">{{ formatDate(hist.createdAt) }}</td>
@@ -181,6 +178,43 @@ export class MediaDetailComponent implements OnInit {
       return new Date(dateStr).toLocaleString();
     } catch {
       return dateStr;
+    }
+  }
+
+  getActionLabel(action: string): string {
+    switch (action) {
+      case 'linked': return '🔗 Hardlinked';
+      case 'already_linked': return '🔗 Already Linked';
+      case 'search_triggered': return '🔍 Search Triggered';
+      case 'needs_download': return '📥 Needs Download';
+      case 'already_exists_child': return '📁 Already on Child';
+      case 'would_link': return '🔗 Would Link';
+      case 'added': return '➕ Added to Child';
+      case 'season_monitored': return '📺 Season Monitored';
+      case 'skipped': return '⏭️ Skipped';
+      case 'error': return '⚠️ Error';
+      default: return action ? action.replace(/_/g, ' ').toUpperCase() : '—';
+    }
+  }
+
+  getActionBadgeClass(action: string): string {
+    switch (action) {
+      case 'linked':
+      case 'would_link':
+      case 'added':
+        return 'badge-success';
+      case 'search_triggered':
+      case 'needs_download':
+        return 'badge-info';
+      case 'season_monitored':
+        return 'badge-warning';
+      case 'error':
+        return 'badge-danger';
+      case 'already_linked':
+      case 'already_exists_child':
+      case 'skipped':
+      default:
+        return 'badge-muted';
     }
   }
 }

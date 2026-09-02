@@ -1,8 +1,9 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Instance, RootFolder, QualityProfile } from '../../core/models';
 import { ApiService } from '../../core/services/api.service';
+import { ToastService } from '../../core/services/toast.service';
 import { PathBrowserComponent } from '../path-browser/path-browser.component';
 
 export function normalizeUrl(url: string): string {
@@ -250,7 +251,11 @@ export class InstanceFormComponent {
   rootFolders: RootFolder[] = [];
   qualityProfiles: QualityProfile[] = [];
 
-  constructor(private api: ApiService) {}
+  constructor(
+    private api: ApiService,
+    private cdr: ChangeDetectorRef,
+    private toast: ToastService
+  ) {}
 
   get isValid(): boolean {
     return !!(this.formData.type && this.formData.name && this.formData.url && this.formData.apiKey);
@@ -283,6 +288,7 @@ export class InstanceFormComponent {
     this.onUrlBlur();
     this.isTesting = true;
     this.testResult = null;
+    this.cdr.detectChanges();
 
     this.api.testDirectConnection({
       type: this.formData.type || 'radarr',
@@ -296,12 +302,19 @@ export class InstanceFormComponent {
           this.formData.url = res.url;
         }
         if (res.success) {
+          this.toast.success(`Connected to ${this.typeLabel} successfully${res.version ? ' (v' + res.version + ')' : ''}`);
           this.fetchMetadata();
+        } else {
+          this.toast.error(`Connection failed: ${res.error || 'Unknown error'}`);
         }
+        this.cdr.detectChanges();
       },
       error: (err) => {
         this.isTesting = false;
-        this.testResult = { success: false, error: err.error?.error || err.message || 'Connection failed' };
+        const errMsg = err.error?.error || err.message || 'Connection failed';
+        this.testResult = { success: false, error: errMsg };
+        this.toast.error(`Connection failed: ${errMsg}`);
+        this.cdr.detectChanges();
       },
     });
   }
@@ -320,8 +333,11 @@ export class InstanceFormComponent {
         if (this.rootFolders.length > 0 && !this.formData.localPath) {
           this.formData.localPath = this.formData.rootFolderPath;
         }
+        this.cdr.detectChanges();
       },
-      error: () => {},
+      error: () => {
+        this.cdr.detectChanges();
+      },
     });
 
     this.api.fetchDirectQualityProfiles({ type, url, apiKey }).subscribe({
@@ -330,8 +346,11 @@ export class InstanceFormComponent {
         if (this.qualityProfiles.length > 0 && !this.formData.qualityProfileId) {
           this.formData.qualityProfileId = this.qualityProfiles[0].id;
         }
+        this.cdr.detectChanges();
       },
-      error: () => {},
+      error: () => {
+        this.cdr.detectChanges();
+      },
     });
   }
 

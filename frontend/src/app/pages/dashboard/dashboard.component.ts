@@ -1,4 +1,13 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  AfterViewInit,
+  ChangeDetectorRef,
+  ElementRef,
+  ViewChild,
+  HostListener
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
@@ -40,7 +49,7 @@ import { FilterBarComponent, FilterState } from '../../components/filter-bar/fil
       (filtersChange)="onFiltersChange($event)"
     ></app-filter-bar>
 
-    <!-- Loading State -->
+    <!-- Initial Loading State -->
     <div *ngIf="isLoading" style="display:flex;justify-content:center;padding:var(--space-2xl);">
       <span class="spinner" style="width:40px;height:40px;border-width:3px;"></span>
     </div>
@@ -71,15 +80,19 @@ import { FilterBarComponent, FilterState } from '../../components/filter-bar/fil
       ></app-media-card>
     </div>
 
-    <!-- Load More -->
-    <div *ngIf="!isLoading && mediaItems.length < totalItems" style="text-align:center;margin-top:var(--space-xl);">
-      <button class="btn btn-secondary" (click)="loadMore()" [disabled]="isLoadingMore">
-        {{ isLoadingMore ? 'Loading...' : 'Load More (' + mediaItems.length + ' / ' + totalItems + ')' }}
-      </button>
+    <!-- Bottom Infinite Scroll Loading Indicator -->
+    <div *ngIf="!isLoading && isLoadingMore" style="display:flex;justify-content:center;align-items:center;gap:var(--space-sm);padding:var(--space-xl);color:var(--text-muted);font-size:0.9rem;">
+      <span class="spinner" style="width:24px;height:24px;border-width:2px;"></span>
+      <span>Loading more titles ({{ mediaItems.length }} / {{ totalItems }})...</span>
     </div>
+
+    <!-- Infinite Scroll Sentinel Target -->
+    <div #scrollSentinel style="height:20px;margin-top:var(--space-md);visibility:hidden;"></div>
   `,
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild('scrollSentinel') scrollSentinel?: ElementRef<HTMLElement>;
+
   mediaItems: MediaItem[] = [];
   stats: MediaStats | null = null;
   profiles: SyncProfile[] = [];
@@ -89,6 +102,7 @@ export class DashboardComponent implements OnInit {
   isScanning = false;
   page = 1;
   limit = 24;
+  lastScrollY = 0;
 
   filters: FilterState = {
     search: '',
@@ -96,6 +110,9 @@ export class DashboardComponent implements OnInit {
     syncStatus: '',
     language: '',
   };
+
+  private observer: IntersectionObserver | null = null;
+  private scrollDebounceTimer: any = null;
 
   constructor(
     private api: ApiService,
@@ -106,13 +123,125 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit() {
     this.loadStats();
-    this.loadMedia();
-    this.api.getSyncProfiles().subscribe({
-      next: (profiles) => {
-        this.profiles = profiles || [];
-        this.cdr.detectChanges();
+    this.loadProfiles();
+
+    // Check for cached state to restore scroll position and loaded list
+    if (this.api.cachedDashboardState && this.api.cachedDashboardState.mediaItems.length > 0) {
+      const cached = this.api.cachedDashboardState;
+      this.mediaItems = [...cached.mediaItems];
+      this.totalItems = cached.totalItems;
+      this.page = cached.page;
+      this.limit = cached.limit;
+      this.filters = { ...cached.filters };
+      this.lastScrollY = cached.scrollY;
+      if (cached.stats) this.stats = cached.stats;
+      this.isLoading = false;
+      this.cdr.detectChanges();
+
+      // Restore scroll position with retry animation loop
+      this.restoreScrollPosition(cached.scrollY);
+      setTimeout(() => this.setupIntersectionObserver(), 100);
+    } else {
+      this.loadMedia();
+    }
+  }
+
+  ngAfterViewInit() {
+    if (!this.isLoading) {
+      this.setupIntersectionObserver();
+    }
+  }
+
+  ngOnDestroy() {
+    this.saveCurrentState();
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+    if (this.scrollDebounceTimer) {
+      clearTimeout(this.scrollDebounceTimer);
+    }
+  }
+
+  @HostListener('window:scroll')
+  onWindowScroll() {
+    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+    if (scrollY > 0) {
+      this.lastScrollY = scrollY;
+      if (this.api.cachedDashboardState) {
+        this.api.cachedDashboardState.scrollY = scrollY;
+      }
+    }
+
+    // Debounced infinite scroll check near bottom
+    if (this.scrollDebounceTimer) return;
+    this.scrollDebounceTimer = setTimeout(() => {
+      this.scrollDebounceTimer = null;
+      if (this.isLoading || this.isLoadingMore || this.mediaItems.length >= this.totalItems) return;
+
+      const currentY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+      const scrollPos = window.innerHeight + currentY;
+      const threshold = document.documentElement.scrollHeight - 500;
+      if (scrollPos >= threshold) {
+        this.loadMore();
+      }
+    }, 100);
+  }
+
+  private setupIntersectionObserver() {
+    if (this.observer) {
+      this.observer.disconnect();
+    }
+    if (!this.scrollSentinel?.nativeElement) return;
+
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first && first.isIntersecting) {
+          if (!this.isLoading && !this.isLoadingMore && this.mediaItems.length < this.totalItems) {
+            this.loadMore();
+          }
+        }
       },
-    });
+      { rootMargin: '500px 0px', threshold: 0.01 }
+    );
+
+    this.observer.observe(this.scrollSentinel.nativeElement);
+  }
+
+  private restoreScrollPosition(targetY: number) {
+    if (targetY <= 0) return;
+    let attempts = 0;
+    const maxAttempts = 25;
+
+    const performScroll = () => {
+      attempts++;
+      window.scrollTo({ top: targetY, behavior: 'instant' });
+      const currentY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+
+      // If document height hasn't fully laid out, keep retrying
+      if (Math.abs(currentY - targetY) > 20 && attempts < maxAttempts) {
+        requestAnimationFrame(performScroll);
+      }
+    };
+
+    setTimeout(() => {
+      requestAnimationFrame(performScroll);
+    }, 30);
+  }
+
+  private saveCurrentState() {
+    const liveScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+    const scrollY = liveScrollY > 0 ? liveScrollY : (this.lastScrollY > 0 ? this.lastScrollY : 0);
+    this.api.cachedDashboardState = {
+      mediaItems: this.mediaItems,
+      totalItems: this.totalItems,
+      page: this.page,
+      limit: this.limit,
+      filters: { ...this.filters },
+      stats: this.stats,
+      scrollY
+    };
   }
 
   get hasFilters(): boolean {
@@ -121,6 +250,15 @@ export class DashboardComponent implements OnInit {
 
   trackById(index: number, item: MediaItem): number {
     return item.id;
+  }
+
+  loadProfiles() {
+    this.api.getSyncProfiles().subscribe({
+      next: (profiles) => {
+        this.profiles = profiles || [];
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   loadStats() {
@@ -153,6 +291,8 @@ export class DashboardComponent implements OnInit {
         this.totalItems = res?.total || 0;
         this.isLoading = false;
         this.cdr.detectChanges();
+        this.saveCurrentState();
+        setTimeout(() => this.setupIntersectionObserver(), 50);
       },
       error: () => {
         this.mediaItems = [];
@@ -177,11 +317,14 @@ export class DashboardComponent implements OnInit {
       language: this.filters.language,
     }).subscribe({
       next: (res) => {
-        if (res?.data) {
-          this.mediaItems = [...this.mediaItems, ...res.data];
+        if (res?.data && res.data.length > 0) {
+          const existingIds = new Set(this.mediaItems.map(m => m.id));
+          const newItems = res.data.filter(m => !existingIds.has(m.id));
+          this.mediaItems = [...this.mediaItems, ...newItems];
         }
         this.isLoadingMore = false;
         this.cdr.detectChanges();
+        this.saveCurrentState();
       },
       error: () => {
         this.isLoadingMore = false;
@@ -192,10 +335,13 @@ export class DashboardComponent implements OnInit {
 
   onFiltersChange(newFilters: FilterState) {
     this.filters = newFilters;
+    this.lastScrollY = 0;
+    this.api.clearDashboardCache();
     this.loadMedia();
   }
 
   onMediaClick(media: MediaItem) {
+    this.saveCurrentState();
     this.router.navigate(['/media', media.id]);
   }
 
@@ -209,6 +355,8 @@ export class DashboardComponent implements OnInit {
     this.api.triggerLibraryScan().subscribe({
       next: (result: any) => {
         this.isScanning = false;
+        this.lastScrollY = 0;
+        this.api.clearDashboardCache();
         this.loadStats();
         this.loadMedia();
         this.cdr.detectChanges();

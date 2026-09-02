@@ -21,9 +21,29 @@ import {
   HistoryQueryParams
 } from '../models';
 
+export interface CachedDashboardState {
+  mediaItems: MediaItem[];
+  totalItems: number;
+  page: number;
+  limit: number;
+  filters: {
+    search: string;
+    mediaType: string;
+    syncStatus: string;
+    language: string;
+  };
+  stats: MediaStats | null;
+  scrollY: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private baseUrl = '/api';
+  cachedDashboardState: CachedDashboardState | null = null;
+
+  clearDashboardCache(): void {
+    this.cachedDashboardState = null;
+  }
 
   constructor(private http: HttpClient) {}
 

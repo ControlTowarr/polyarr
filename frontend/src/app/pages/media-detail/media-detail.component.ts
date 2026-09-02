@@ -1,6 +1,6 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { CommonModule, Location } from '@angular/common';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { ApiService } from '../../core/services/api.service';
 import { MediaItemDetail } from '../../core/models';
@@ -16,7 +16,7 @@ import { MediaItemDetail } from '../../core/models';
 
     <div *ngIf="!isLoading && media" class="detail-container">
       <div style="margin-bottom:var(--space-md);">
-        <a routerLink="/dashboard" class="btn btn-ghost btn-sm">← Back to Dashboard</a>
+        <button (click)="goBack()" class="btn btn-ghost btn-sm" style="cursor:pointer;">← Back to Dashboard</button>
       </div>
 
       <!-- Hero Section -->
@@ -133,12 +133,15 @@ export class MediaDetailComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
+    private location: Location,
     private api: ApiService,
     private cdr: ChangeDetectorRef,
     private titleService: Title
   ) {}
 
   ngOnInit() {
+    window.scrollTo({ top: 0, behavior: 'instant' });
     this.route.params.subscribe(params => {
       const id = +params['id'];
       if (id) {
@@ -162,6 +165,14 @@ export class MediaDetailComponent implements OnInit {
         });
       }
     });
+  }
+
+  goBack() {
+    if (window.history.length > 1) {
+      this.location.back();
+    } else {
+      this.router.navigate(['/dashboard']);
+    }
   }
 
   formatDate(dateStr: string): string {

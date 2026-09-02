@@ -72,15 +72,15 @@ export class ApiService {
     return this.http.post<{ version: string }>(`${this.baseUrl}/instances/${id}/test`, {});
   }
 
-  testDirectConnection(data: { type: string; url: string; apiKey: string }): Observable<{ version: string }> {
-    return this.http.post<{ version: string }>(`${this.baseUrl}/instances/test-connection`, data);
+  testDirectConnection(data: { type?: string; url: string; apiKey: string }): Observable<{ success: boolean; type?: 'radarr' | 'sonarr'; version?: string; instanceName?: string; error?: string; url?: string }> {
+    return this.http.post<{ success: boolean; type?: 'radarr' | 'sonarr'; version?: string; instanceName?: string; error?: string; url?: string }>(`${this.baseUrl}/instances/test-connection`, data);
   }
 
-  fetchDirectRootFolders(data: { type: string; url: string; apiKey: string }): Observable<RootFolder[]> {
+  fetchDirectRootFolders(data: { type?: string; url: string; apiKey: string }): Observable<RootFolder[]> {
     return this.http.post<RootFolder[]>(`${this.baseUrl}/instances/fetch-root-folders`, data);
   }
 
-  fetchDirectQualityProfiles(data: { type: string; url: string; apiKey: string }): Observable<QualityProfile[]> {
+  fetchDirectQualityProfiles(data: { type?: string; url: string; apiKey: string }): Observable<QualityProfile[]> {
     return this.http.post<QualityProfile[]>(`${this.baseUrl}/instances/fetch-quality-profiles`, data);
   }
   

@@ -25,26 +25,13 @@ export function normalizeUrl(url: string): string {
     <div class="card mb-md">
       <div class="flex-between mb-md">
         <div class="flex-align-center gap-sm">
-          <img [src]="formData.type === 'radarr' ? 'radarr.svg' : 'sonarr.svg'" [alt]="typeLabel" class="instance-logo-sm" />
-          <h4 class="text-semibold m-0">{{ isEditing ? 'Edit' : 'Add' }} {{ typeLabel }} Instance</h4>
+          <img *ngIf="formData.type" [src]="formData.type === 'radarr' ? 'radarr.svg' : 'sonarr.svg'" [alt]="typeLabel" class="instance-logo-sm" />
+          <h4 class="text-semibold m-0">{{ isEditing ? 'Edit ' + typeLabel : (formData.type && autoDetected ? 'Add ' + typeLabel : 'Add Server') }} Instance</h4>
         </div>
         <button class="btn btn-ghost btn-sm" (click)="cancel.emit()" *ngIf="showCancel">✕</button>
       </div>
 
-      <!-- Type selector — only shown when fixedType is not set -->
-      <div class="form-group" *ngIf="!fixedType">
-        <label class="form-label" for="instance-type">Type</label>
-        <select class="form-select" [(ngModel)]="formData.type" id="instance-type" [disabled]="isEditing">
-          <option value="radarr">Radarr (Movies)</option>
-          <option value="sonarr">Sonarr (Series)</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="instance-name">Name</label>
-        <input class="form-input" [(ngModel)]="formData.name" id="instance-name" [placeholder]="namePlaceholder" />
-      </div>
-
+      <!-- Host / URL -->
       <div class="form-group">
         <label class="form-label" for="instance-url">Host / URL</label>
         <input
@@ -59,6 +46,7 @@ export function normalizeUrl(url: string): string {
         </p>
       </div>
 
+      <!-- API Key -->
       <div class="form-group">
         <label class="form-label" for="instance-apikey">API Key</label>
         <div class="password-toggle-wrapper">
@@ -66,6 +54,7 @@ export function normalizeUrl(url: string): string {
             class="form-input password-toggle-input"
             [type]="hideApiKey ? 'password' : 'text'"
             [(ngModel)]="formData.apiKey"
+            (blur)="onApiKeyBlur()"
             id="instance-apikey"
             placeholder="Found in Settings → General → Security"
           />
@@ -79,6 +68,25 @@ export function normalizeUrl(url: string): string {
         </div>
       </div>
 
+      <!-- Live Test / Detection Result Banner -->
+      <div *ngIf="testResult" class="connection-test" [ngClass]="testResult.success ? 'success' : 'failure'">
+        <span *ngIf="testResult.success">✓ Connected to {{ typeLabel }} successfully</span>
+        <span *ngIf="testResult.success && testResult.version"> (v{{ testResult.version }})</span>
+        <span *ngIf="testResult.success && testResult.instanceName && testResult.instanceName !== typeLabel"> — {{ testResult.instanceName }}</span>
+        <span *ngIf="!testResult.success">✕ Failed: {{ testResult.error }}</span>
+      </div>
+
+      <div *ngIf="isTesting" class="connection-test testing">
+        <span class="spinner"></span> Connecting & auto-detecting server type...
+      </div>
+
+      <!-- Name -->
+      <div class="form-group">
+        <label class="form-label" for="instance-name">Name</label>
+        <input class="form-input" [(ngModel)]="formData.name" id="instance-name" [placeholder]="namePlaceholder" />
+      </div>
+
+      <!-- Language -->
       <div class="form-group">
         <label class="form-label" for="instance-language">Primary Audio Language</label>
         <select class="form-select" [(ngModel)]="formData.language" id="instance-language">
@@ -102,18 +110,6 @@ export function normalizeUrl(url: string): string {
         <p class="form-hint mt-xs">
           Designates this as your primary library (e.g. English). Polyarr monitors this server for new downloads to sync, hardlink, and coordinate with secondary child instances.
         </p>
-      </div>
-
-      <!-- Live Test Result Banner -->
-      <div *ngIf="testResult" class="connection-test" [ngClass]="testResult.success ? 'success' : 'failure'">
-        <span *ngIf="testResult.success">✓ Connected successfully</span>
-        <span *ngIf="testResult.success && testResult.version"> — v{{ testResult.version }}</span>
-        <span *ngIf="testResult.success && testResult.instanceName"> ({{ testResult.instanceName }})</span>
-        <span *ngIf="!testResult.success">✕ Failed: {{ testResult.error }}</span>
-      </div>
-
-      <div *ngIf="isTesting" class="connection-test testing">
-        <span class="spinner"></span> Testing connection & discovering server settings...
       </div>
 
       <!-- Server Settings (Root Folder & Quality Profile) -->
@@ -235,7 +231,7 @@ export class InstanceFormComponent {
   @Output() cancel = new EventEmitter<void>();
 
   formData: Partial<Instance> = {
-    type: 'radarr',
+    type: undefined,
     name: '',
     url: '',
     apiKey: '',
@@ -246,8 +242,9 @@ export class InstanceFormComponent {
     isMain: false,
   };
 
-  testResult: { success: boolean; version?: string; instanceName?: string; error?: string } | null = null;
+  testResult: { success: boolean; type?: 'radarr' | 'sonarr'; version?: string; instanceName?: string; error?: string } | null = null;
   isTesting = false;
+  autoDetected = false;
   hideApiKey = true;
   rootFolders: RootFolder[] = [];
   qualityProfiles: QualityProfile[] = [];
@@ -259,40 +256,57 @@ export class InstanceFormComponent {
   ) {}
 
   get isValid(): boolean {
-    return !!(this.formData.type && this.formData.name && this.formData.url && this.formData.apiKey);
+    return !!(this.formData.name && this.formData.url && this.formData.apiKey);
   }
 
   get hasMinFields(): boolean {
-    return !!(this.formData.type && this.formData.url && this.formData.apiKey);
+    return !!(this.formData.url && this.formData.apiKey);
   }
 
   get typeLabel(): string {
-    return this.formData.type === 'radarr' ? 'Radarr' : 'Sonarr';
+    if (this.formData.type === 'sonarr') return 'Sonarr';
+    if (this.formData.type === 'radarr') return 'Radarr';
+    return 'Server';
   }
 
   get namePlaceholder(): string {
-    return this.formData.type === 'radarr' ? 'e.g. Radarr Main / Radarr 4K' : 'e.g. Sonarr Main / Sonarr Anime';
+    if (this.formData.type === 'sonarr') return 'e.g. Sonarr Main / Sonarr Anime';
+    if (this.formData.type === 'radarr') return 'e.g. Radarr Main / Radarr 4K';
+    return 'e.g. Radarr Main or Sonarr Anime';
   }
 
   get urlPlaceholder(): string {
-    return this.formData.type === 'radarr' ? '192.168.1.100:7878' : '192.168.1.100:8989';
+    if (this.formData.type === 'sonarr') return '192.168.1.100:8989';
+    if (this.formData.type === 'radarr') return '192.168.1.100:7878';
+    return '192.168.1.100:7878 or 192.168.1.100:8989';
   }
 
   onUrlBlur() {
     if (this.formData.url) {
       this.formData.url = normalizeUrl(this.formData.url);
     }
+    if (!this.isTesting && this.formData.url && this.formData.apiKey && !this.testResult?.success) {
+      this.testConnection();
+    }
+  }
+
+  onApiKeyBlur() {
+    if (!this.isTesting && this.formData.url && this.formData.apiKey && !this.testResult?.success) {
+      this.testConnection();
+    }
   }
 
   testConnection() {
-    if (!this.hasMinFields) return;
-    this.onUrlBlur();
+    if (!this.hasMinFields || this.isTesting) return;
+    if (this.formData.url) {
+      this.formData.url = normalizeUrl(this.formData.url);
+    }
     this.isTesting = true;
     this.testResult = null;
     this.cdr.detectChanges();
 
     this.api.testDirectConnection({
-      type: this.formData.type || 'radarr',
+      type: this.fixedType || undefined,
       url: this.formData.url || '',
       apiKey: this.formData.apiKey || '',
     }).subscribe({
@@ -303,6 +317,13 @@ export class InstanceFormComponent {
           this.formData.url = res.url;
         }
         if (res.success) {
+          if (res.type) {
+            this.formData.type = res.type;
+            this.autoDetected = true;
+          }
+          if (res.instanceName && !this.formData.name) {
+            this.formData.name = res.instanceName;
+          }
           this.toast.success(`Connected to ${this.typeLabel} successfully${res.version ? ' (v' + res.version + ')' : ''}`);
           this.fetchMetadata();
         } else {
@@ -322,9 +343,9 @@ export class InstanceFormComponent {
 
   fetchMetadata() {
     const { type, url, apiKey } = this.formData;
-    if (!type || !url || !apiKey) return;
+    if (!url || !apiKey) return;
 
-    this.api.fetchDirectRootFolders({ type, url, apiKey }).subscribe({
+    this.api.fetchDirectRootFolders({ type: type || undefined, url, apiKey }).subscribe({
       next: (folders) => {
         this.rootFolders = folders || [];
         if (this.rootFolders.length > 0 && !this.formData.rootFolderPath) {
@@ -341,7 +362,7 @@ export class InstanceFormComponent {
       },
     });
 
-    this.api.fetchDirectQualityProfiles({ type, url, apiKey }).subscribe({
+    this.api.fetchDirectQualityProfiles({ type: type || undefined, url, apiKey }).subscribe({
       next: (profiles) => {
         this.qualityProfiles = profiles || [];
         if (this.qualityProfiles.length > 0 && !this.formData.qualityProfileId) {
@@ -356,7 +377,9 @@ export class InstanceFormComponent {
   }
 
   save() {
-    this.onUrlBlur();
+    if (this.formData.url) {
+      this.formData.url = normalizeUrl(this.formData.url);
+    }
     if (!this.isValid) return;
     this.saved.emit({ ...this.formData });
   }

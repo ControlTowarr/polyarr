@@ -72,4 +72,52 @@ describe('Instances Routes', () => {
     const res = await request(app).post('/instances/99/test');
     expect(res.status).toBe(404);
   });
+
+  it('POST /instances/test-connection auto-detects Sonarr instance', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ appName: 'Sonarr', version: '4.0.1', instanceName: 'Sonarr Anime' }),
+    } as any);
+
+    const res = await request(app)
+      .post('/instances/test-connection')
+      .send({ url: 'http://sonarr.local:8989', apiKey: 'testkey' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      type: 'sonarr',
+      version: '4.0.1',
+      instanceName: 'Sonarr Anime',
+      url: 'http://sonarr.local:8989',
+    });
+
+    global.fetch = originalFetch;
+  });
+
+  it('POST /instances/test-connection auto-detects Radarr instance', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ appName: 'Radarr', version: '5.1.0', instanceName: 'Radarr 4K' }),
+    } as any);
+
+    const res = await request(app)
+      .post('/instances/test-connection')
+      .send({ url: 'http://radarr.local:7878', apiKey: 'testkey' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      type: 'radarr',
+      version: '5.1.0',
+      instanceName: 'Radarr 4K',
+      url: 'http://radarr.local:7878',
+    });
+
+    global.fetch = originalFetch;
+  });
 });

@@ -1568,6 +1568,8 @@ input:checked + .switch-slider:before {
 .mb-2xl { margin-bottom: var(--space-2xl); }
 .mr-sm { margin-right: var(--space-sm); }
 .mr-md { margin-right: var(--space-md); }
+.ml-xs { margin-left: var(--space-xs); }
+.ml-sm { margin-left: var(--space-sm); }
 .ml-auto { margin-left: auto; }
 .m-auto { margin: auto; }
 
